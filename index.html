@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YeS-TR Değerlendirme Kiti · Novera</title>
+<meta name="description" content="YeS-TR (Yeşil Sertifika) bina ve yerleşme ölçeği ön değerlendirme, skorlama, kanıt takibi ve rapor aracı.">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="app">
+  <header class="hd">
+    <div class="lg"><img src="assets/img/logo-white.png" alt="Novera Research &amp; Consultancy"></div>
+    <div class="ht">
+      <h1>YeS-TR Değerlendirme Kiti</h1>
+      <div class="sub" id="hsub">Skorlama ve kanıt takibi · v1.2 esaslı ön değerlendirme aracıdır, bağlayıcı değildir</div>
+      <a href="#" class="home" id="home" hidden>← Ana sayfa · Projeler</a>
+    </div>
+  </header>
+
+  <!-- ===== Açılış sayfası ===== -->
+  <section id="start" hidden>
+    <div class="intro">
+      <h2>Yeni bir YeS-TR ön değerlendirmesi başlatın</h2>
+      <p>Proje bilgilerini girin; kriter bazında skorlama, kanıt dosyası takibi ve Word raporu için değerlendirme ekranına geçilecektir. Veriler yalnızca bu cihazda saklanır.</p>
+    </div>
+    <div class="start">
+      <form class="card" id="sf" novalidate>
+        <h3>Proje bilgileri</h3>
+        <div class="grid">
+          <div class="w2"><label class="f" for="s_proje">Proje adı *</label><input id="s_proje" autocomplete="off" placeholder="ör. Ankara İl Sağlık Müdürlüğü Hizmet Binası"></div>
+          <div><label class="f" for="s_kurum">Kurum</label><input id="s_kurum" placeholder="Yapı sahibi / idare"></div>
+          <div><label class="f" for="s_yesu">YESU</label><input id="s_yesu" placeholder="Yeşil Sertifika Uzmanı"></div>
+          <div><label class="f" for="s_tarih">Tarih</label><input type="date" id="s_tarih"></div>
+          <div><label class="f" for="s_ols">Ölçek</label><select id="s_ols"><option value="B">Bina</option><option value="Y">Yerleşme</option></select></div>
+          <div id="s_tipd"><label class="f" for="s_tip">Bina tipi</label><select id="s_tip"></select></div>
+          <div><label class="f" for="s_dur">Yeni / Mevcut</label><select id="s_dur"><option value="Y">Yeni</option><option value="M">Mevcut</option></select></div>
+          <div class="w2"><label class="f" for="s_hdf">Hedef sertifika derecesi</label><select id="s_hdf"></select></div>
+        </div>
+        <div class="note err" id="s_err" hidden>Lütfen proje adını girin.</div>
+        <button type="submit" class="rp go">Değerlendirmeye başla →</button>
+      </form>
+      <div class="card" id="saved">
+        <h3>Kayıtlı projeler</h3>
+        <div id="plist"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Değerlendirme sayfası ===== -->
+  <div id="work" hidden>
+  <!-- Dar ekranda üstte sabit kalan kısa özet -->
+  <div id="mini"></div>
+
+  <div class="layout">
+    <main>
+      <div class="card" id="fld"><label class="f">Aşama filtresi (Uygulama Rehberi)</label><div class="fl" id="fl" style="margin-top:4px"></div></div>
+
+      <div id="tiles" class="tiles"></div>
+      <div id="mods"></div>
+
+      <details class="card">
+        <summary>Dışa / içe aktar (JSON)</summary>
+        <textarea id="js" style="margin-top:8px"></textarea>
+        <div class="ctl" style="margin-top:6px"><button id="ex">Dışa aktar</button><button id="exf">Dosya olarak indir</button><button id="im">İçe aktar</button></div>
+        <div class="note" id="jm" style="margin-top:6px">Veriler bu cihazda, bu tarayıcıda otomatik saklanır. Başka cihaza taşımak veya yedeklemek için dışa aktarın. JSON yalnızca proje verisini içerir; kanıt dosyaları için zip paketini kullanın.</div>
+      </details>
+    </main>
+
+    <aside class="side">
+      <details class="card info" id="infoBox">
+        <summary><span>Proje bilgileri</span><span class="note" id="infoSum"></span></summary>
+        <div class="grid">
+          <div class="w2"><label class="f">Proje adı</label><input data-i="proje"></div>
+          <div><label class="f">Kurum</label><input data-i="kurum"></div>
+          <div><label class="f">YESU</label><input data-i="yesu"></div>
+          <div><label class="f">Tarih</label><input type="date" data-i="tarih"></div>
+          <div><label class="f">Ölçek</label><select id="ols"><option value="B">Bina</option><option value="Y">Yerleşme</option></select></div>
+          <div id="tipd"><label class="f">Bina tipi</label><select id="tip"></select></div>
+          <div><label class="f">Yeni / Mevcut</label><select id="dur"><option value="Y">Yeni</option><option value="M">Mevcut</option></select></div>
+          <div class="w2"><label class="f">Hedef sertifika derecesi</label><select id="hdf"></select></div>
+        </div>
+        <div class="pa"><button id="pd" title="Bu projenin kopyasını oluştur (kanıt dosyaları hariç)">Projeyi kopyala</button><button id="px" class="del" title="Projeyi ve kanıt dosyalarını sil">Projeyi sil</button></div>
+      </details>
+      <div id="sum" class="card"></div>
+      <div class="card">
+        <button id="rp" class="rp">Rapor oluştur (.docx)</button>
+        <button id="rz" class="rp alt">Rapor + kanıt dosyaları (.zip)</button>
+        <div id="rm" class="note" style="margin-top:6px">Rapor; skorları, notları ve Ekler bölümünde yüklenen kanıt belgelerini (görseller ve PDF sayfaları) içerir. Zip paketi ayrıca tüm orijinal dosyaları ek numaralarıyla içerir.</div>
+      </div>
+    </aside>
+  </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/engine.js"></script>
+<script src="assets/js/storage.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/report.js"></script>
+<script src="assets/js/ui.js"></script>
+</body>
+</html>

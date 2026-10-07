@@ -1,0 +1,15 @@
+# İşletim sistemi / editör
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+
+# Geçici test ve yedek dosyaları
+_*.html
+*.bak
+*.tmp
+
+# Yerel proje dışa aktarımları ve raporlar (müşteri verisi içerebilir)
+YeS-TR_*.json
+YeS-TR_Rapor_*.docx
+YeS-TR_Rapor_*.zip
