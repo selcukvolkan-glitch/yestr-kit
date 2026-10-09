@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>YeS-TR Değerlendirme Kiti · Novera</title>
 <meta name="description" content="YeS-TR (Yeşil Sertifika) bina ve yerleşme ölçeği ön değerlendirme, skorlama, kanıt takibi ve rapor aracı.">
-<link rel="stylesheet" href="assets/css/style.css">
+<!-- Önbellek: her yayında ?v= değeri artırılır, tarayıcı eski dosyaları yeni sayfayla karıştırmaz -->
+<link rel="stylesheet" href="assets/css/style.css?v=20261009-7">
 </head>
 <body>
 <div id="app">
@@ -89,7 +90,7 @@
           <div><label class="f">Yeni / Mevcut</label><select id="dur"><option value="Y">Yeni</option><option value="M">Mevcut</option></select></div>
           <div class="w2"><label class="f">Hedef sertifika derecesi</label><select id="hdf"></select></div>
         </div>
-        <div class="pa"><button id="pd" title="Bu projenin kopyasını oluştur (kanıt dosyaları hariç)">Projeyi kopyala</button></div>
+        <div class="pa"><button id="pd" title="Bu projenin kopyasını oluştur (kanıt dosyaları hariç)">Projeyi Kopyala</button></div>
       </details>
       <details class="card info" id="repBox">
         <summary><span>Rapor Bilgileri</span><span class="note" id="repSum"></span></summary>
@@ -98,14 +99,14 @@
       </details>
       <div id="sum" class="card"></div>
       <div class="card">
-        <button id="rp" class="rp">Rapor oluştur (.docx)</button>
-        <button id="rz" class="rp alt">Rapor + kanıt dosyaları (.zip)</button>
+        <button id="rp" class="rp">Rapor Oluştur (.docx)</button>
+        <button id="rz" class="rp alt">Rapor + Kanıt Dosyaları (.zip)</button>
         <div id="rm" class="note" style="margin-top:6px">Rapor; skorları, notları ve Ekler bölümünde yüklenen kanıt belgelerini (görseller ve PDF sayfaları) içerir. Zip paketi ayrıca tüm orijinal dosyaları ek numaralarıyla içerir.</div>
       </div>
       <div class="card endc">
         <div class="endr">
-          <button id="pend" class="endb">Projeyi sonlandır</button>
-          <button id="px" class="endb del">Projeyi sil</button>
+          <button id="pend" class="endb">Projeyi Sonlandır</button>
+          <button id="px" class="endb del">Projeyi Sil</button>
         </div>
         <div id="pendn" class="note" style="margin-top:6px">Sonlandırılan proje açılış sayfasında “Biten Projeler” sekmesine taşınır.</div>
         <div class="note" style="margin-top:4px">Silinen proje 7 gün “Silinen Projeler” sekmesinde bekler; bu sürede geri yüklenebilir, sonra kanıt dosyalarıyla birlikte kalıcı olarak silinir.</div>
@@ -115,13 +116,13 @@
   </div>
 </div>
 
-<script src="assets/js/data.js"></script>
-<script src="assets/js/engine.js"></script>
-<script src="assets/js/storage.js"></script>
-<script src="assets/js/charts.js"></script>
-<script src="assets/js/report.js"></script>
-<script src="assets/js/ui.js"></script>
-<script src="assets/js/repinfo.js"></script>
+<script src="assets/js/data.js?v=20261009-7"></script>
+<script src="assets/js/engine.js?v=20261009-7"></script>
+<script src="assets/js/storage.js?v=20261009-7"></script>
+<script src="assets/js/charts.js?v=20261009-7"></script>
+<script src="assets/js/report.js?v=20261009-7"></script>
+<script src="assets/js/ui.js?v=20261009-7"></script>
+<script src="assets/js/repinfo.js?v=20261009-7"></script>
 <script>load(); purgeDeleted(); route();</script>
 </body>
 </html>

@@ -343,15 +343,15 @@ let confirmDel = 0;
 $('#px').onclick = () => {
   if (!confirmDel) {
     confirmDel = 1; $('#px').textContent = 'Emin misiniz? Tekrar tıklayın';
-    setTimeout(() => { confirmDel = 0; $('#px').textContent = 'Projeyi sil'; }, 3000);
+    setTimeout(() => { confirmDel = 0; $('#px').textContent = 'Projeyi Sil'; }, 3000);
     return;
   }
-  confirmDel = 0; $('#px').textContent = 'Projeyi sil';
+  confirmDel = 0; $('#px').textContent = 'Projeyi Sil';
   S.deleted = new Date().toISOString();
   save();
   freshCurrent(); save();
   PTAB = 'x';
-  location.hash = ''; // açılış sayfası, Silinen Projeler sekmesi
+  location.hash = homeHash(); // proje listesi, Silinen Projeler sekmesi
 };
 
 
@@ -424,21 +424,49 @@ $('#rz').onclick = () => runReport(true);
 // #degerlendirme = değerlendirme ekranı, #rapor = aktif projenin rapor bilgileri sayfası
 // (açılış formu düzenleme modunda; Proje Bilgileri kutusu gizlenir, yalnızca Rapor Bilgileri görünür)
 const WORK_HASH = '#degerlendirme', EDIT_HASH = '#rapor';
+// Giriş akışı: hash'siz index.html → giris.html (Yeni Proje / Projeler).
+// #yeni = yalnızca proje formu, #projeler = yalnızca proje listesi.
+// #acilis = eski birleşik açılış sayfası (form + liste); bağlantısız, geri dönüş için korunuyor.
+// Eski sayfadan girildiyse (FLOW=false) geri dönüşler oraya, aksi halde Projeler sayfasına yapılır.
+const NEW_HASH = '#yeni', LIST_HASH = '#projeler', OLD_HASH = '#acilis', ENTRY_PAGE = 'giris.html';
+let FLOW = true;
+try { FLOW = sessionStorage.getItem('yestr_flow') !== '0'; } catch (e) {}
+const setFlow = v => { FLOW = v; try { sessionStorage.setItem('yestr_flow', v ? '1' : '0'); } catch (e) {} };
+const homeHash = () => FLOW ? LIST_HASH : OLD_HASH;
 const isUsed = p => !!(p.info && p.info.proje) || ['v', 'z', 'f', 'n'].some(k => p[k] && Object.keys(p[k]).length);
 
 function route() {
-  const work = location.hash === WORK_HASH, edit = location.hash === EDIT_HASH && isUsed(S);
+  const h = location.hash;
+  // Adressiz açılış → giriş sayfası
+  if (!h || h === '#' || ![WORK_HASH, EDIT_HASH, NEW_HASH, LIST_HASH, OLD_HASH].includes(h)) { location.replace(ENTRY_PAGE); return; }
+  if (h === EDIT_HASH && !isUsed(S)) { location.replace('#' + homeHash().slice(1)); return; } // açık proje yokken rapor sayfası
+  const work = h === WORK_HASH, edit = h === EDIT_HASH;
+  const mode = h === NEW_HASH ? 'yeni' : h === LIST_HASH ? 'liste' : 'full';
+  if (mode !== 'full') setFlow(true);
+  else if (h === OLD_HASH) setFlow(false); // eski açılış sayfası
   $('#start').hidden = work;
   $('#work').hidden = !work;
-  $('#home').hidden = !(work || edit);
-  if (work) { init(); } else { drawStart(edit); $('#hsub').textContent = 'Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir'; }
+  const home = $('#home');
+  home.hidden = !(work || edit || mode !== 'full');
+  if (mode !== 'full') { home.textContent = '← Giriş'; home.dataset.to = ENTRY_PAGE; }
+  else if (FLOW) { home.textContent = '← Projeler'; home.dataset.to = LIST_HASH; }
+  else { home.textContent = '← Ana sayfa · Projeler'; home.dataset.to = OLD_HASH; }
+  if (work) { init(); } else { drawStart(edit, mode); $('#hsub').textContent = 'Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir'; }
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
-$('#home').onclick = e => { e.preventDefault(); location.hash = ''; };
+$('#home').onclick = e => {
+  e.preventDefault();
+  const to = e.currentTarget.dataset.to || '';
+  if (to.endsWith('.html')) location.href = to; else location.hash = to;
+};
 $('#s_cancel').onclick = () => { location.hash = WORK_HASH; };
 
-function drawStart(edit) {
+function drawStart(edit, mode = 'full') {
+  // Yeni akış sayfaları: tek sütun, ortalanmış; #yeni yalnızca form, #projeler yalnızca liste
+  $('#start').classList.toggle('solo', mode !== 'full' && !edit);
+  $('#sf').hidden = mode === 'liste' && !edit;
+  $('.intro').hidden = mode === 'yeni' && !edit;
   $('#s_tip').innerHTML = TIPS.map((t, i) => `<option value="${i}">${t}</option>`).join('');
   $('#s_hdf').innerHTML = GRADES.map((t, i) => `<option value="${i}">${t}</option>`).join('');
   $('#sf').reset();
@@ -472,8 +500,12 @@ function drawStart(edit) {
   }
 
   if (!edit) drawProjectList();
-  $('#saved').hidden = edit || !Object.keys(P.list).some(k => isUsed(P.list[k]));
-  if (!edit) setTimeout(() => $('#s_proje').focus());
+  $('#saved').hidden = edit || mode === 'yeni' || (mode === 'full' && !Object.keys(P.list).some(k => isUsed(P.list[k])));
+  if (mode === 'liste' && !edit) {
+    $('.intro h2').textContent = 'Projeler';
+    $('.intro p').innerHTML = 'Devam eden, biten ve silinen projeleriniz. Açmak için projeye tıklayın. · <a href="#yeni">+ Yeni proje oluştur</a>';
+  }
+  if (!edit && mode !== 'liste') setTimeout(() => $('#s_proje').focus());
 }
 
 // Kayıtlı projeler: "Projeler" (devam eden) ve "Biten Projeler" sekmeleri
@@ -509,7 +541,7 @@ function drawProjectList() {
     </button>`;
   }).join('') || `<div class="note" style="padding:10px 2px">${{
     a: 'Devam eden proje yok.',
-    d: 'Henüz biten proje yok. Değerlendirme ekranında sağ panelin altındaki “Projeyi sonlandır” ile projeler buraya taşınır.',
+    d: 'Henüz biten proje yok. Değerlendirme ekranında sağ panelin altındaki “Projeyi Sonlandır” ile projeler buraya taşınır.',
     x: `Silinen proje yok. Silinen projeler burada ${KEEP_DAYS} gün bekler, sonra kalıcı olarak kaldırılır.`
   }[PTAB]}</div>`;
   setScale(cur);
@@ -536,7 +568,7 @@ document.addEventListener('click', e => {
 let confirmEnd = 0;
 function drawEnd() {
   const d = S.done;
-  $('#pend').textContent = d ? 'Projeyi yeniden aç' : 'Projeyi sonlandır';
+  $('#pend').textContent = d ? 'Projeyi Yeniden Aç' : 'Projeyi Sonlandır';
   $('#pend').classList.toggle('reopen', !!d);
   $('#pendn').textContent = d
     ? `Bu proje ${trDate(d)} tarihinde sonlandırıldı. Yeniden açılırsa “Projeler” sekmesine döner.`
@@ -556,7 +588,7 @@ $('#pend').onclick = () => {
   S.done = new Date().toISOString().slice(0, 10);
   save();
   PTAB = 'd';
-  location.hash = ''; // açılış sayfası, Biten Projeler sekmesi
+  location.hash = homeHash(); // proje listesi, Biten Projeler sekmesi
 };
 
 $('#s_ols').onchange = e => { $('#s_tipd').hidden = e.target.value === 'Y'; };

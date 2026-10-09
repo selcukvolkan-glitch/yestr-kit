@@ -38,6 +38,10 @@ body { margin: 0; background: var(--bg); color: var(--tx); font: 15px/1.4 system
 .intro p { margin: 0; color: var(--mu); max-width: 760px; }
 .start { display: grid; grid-template-columns: minmax(0, 1fr) var(--side); gap: 14px; align-items: start; }
 @media (max-width: 1000px) { .start { grid-template-columns: minmax(0, 1fr); } }
+/* Giriş akışı sayfaları (#yeni, #projeler): tek sütun, ortalanmış */
+#start.solo .start { grid-template-columns: minmax(0, 1fr); max-width: 880px; margin: 0 auto; }
+#start.solo .intro { max-width: 880px; margin-left: auto; margin-right: auto; }
+#start.solo .intro a { color: var(--pr); font-weight: 600; }
 .start h3 { margin: 0 0 10px; font-size: 15px; color: var(--pr); }
 .start .grid { gap: 12px; }
 .start input, .start select { padding: 9px; }

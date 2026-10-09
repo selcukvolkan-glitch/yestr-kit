@@ -28,6 +28,21 @@ Derleme adımı yoktur; düz HTML/CSS/JS'dir. `index.html` doğrudan tarayıcıd
 | `assets/js/logo.js` | Rapora gömülen logo |
 | `vendor/` | docx 9.6.1, pdf.js 3.11.174, JSZip 3.10.1 (yerel kopyalar) |
 
+## Sayfalar
+
+| Adres | Sayfa |
+|---|---|
+| `giris.html` | Giriş: Yeni Proje / Projeler (adressiz `index.html` buraya yönlenir) |
+| `index.html#yeni` | Yeni proje: Proje Bilgileri + Rapor Bilgileri |
+| `index.html#projeler` | Projeler / Biten / Silinen sekmeleri |
+| `index.html#degerlendirme` | Değerlendirme ekranı (aktif proje) |
+| `index.html#rapor` | Aktif projenin rapor bilgileri |
+| `index.html#acilis` | Eski birleşik açılış sayfası (bağlantısız, geri dönüş için korunuyor) |
+
+## Yayın
+
+`index.html` içindeki CSS/JS bağlantıları `?v=` sürüm etiketi taşır. Her yayında bu değer artırılmalıdır; aksi halde tarayıcılar (GitHub Pages 10 dakikalık önbellek) eski ve yeni dosyaları karıştırabilir.
+
 ## Veri
 
 Tüm proje verileri ve kanıt dosyaları kullanıcının tarayıcısında saklanır; sunucuya gönderilmez. Proje verisi JSON ile dışa/içe aktarılabilir; kanıt dosyaları zip paketiyle teslim edilir.

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YeS-TR Değerlendirme Kiti · Novera</title>
+<!-- Giriş sayfası: sitenin ilk sayfası (index.html adressiz açılınca buraya yönlenir).
+     Eski birleşik açılış sayfası index.html#acilis adresinde bağlantısız olarak korunuyor. -->
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #fff;
+    background: radial-gradient(ellipse at 50% 35%, #00527a 0%, #003a57 55%, #002a40 100%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px;
+  }
+  .giris { text-align: center; width: 100%; max-width: 560px; }
+  .giris img { width: min(340px, 80%); height: auto; display: block; margin: 0 auto; }
+  .giris h1 { margin: 34px 0 40px; font-size: clamp(24px, 5vw, 34px); font-weight: 700; letter-spacing: .2px; }
+  .btns { display: flex; gap: 14px; justify-content: center; }
+  .btns a {
+    flex: 1; max-width: 220px; font-size: 17px; font-weight: 600; text-decoration: none; text-align: center;
+    padding: 14px 18px; border-radius: 10px; transition: background .15s, transform .1s;
+  }
+  .btns a:active { transform: translateY(1px); }
+  .yeni { background: #d74921; color: #fff; border: 2px solid #d74921; }
+  .yeni:hover { background: #c03f1b; border-color: #c03f1b; }
+  .proj { background: transparent; color: #fff; border: 2px solid rgba(255, 255, 255, .85); }
+  .proj:hover { background: rgba(255, 255, 255, .12); }
+</style>
+</head>
+<body>
+  <main class="giris">
+    <img src="assets/img/logo-white.png" alt="Novera Research &amp; Consultancy">
+    <h1>YeS-TR Değerlendirme Kiti</h1>
+    <div class="btns">
+      <a class="yeni" href="index.html#yeni">Yeni Proje</a>
+      <a class="proj" href="index.html#projeler">Projeler</a>
+    </div>
+  </main>
+</body>
+</html>
