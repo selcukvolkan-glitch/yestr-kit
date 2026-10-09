@@ -214,6 +214,7 @@ function update() {
   h += `<div class="note sec">Kanıt durumu: ${done}/${total} kriter tamamlandı<br>Kanıt dosyası: ${nFiles} dosya · ${nCrit} kriter</div>`;
   $('#sum').innerHTML = h;
   drawRepCard();
+  if (!confirmEnd) drawEnd();
   $('#infoSum').textContent = [S.info.proje || 'Adsız proje', D.scale === 'Y' ? 'Yerleşme' : TIPS[S.tip], S.durum === 'Y' ? 'Yeni' : 'Mevcut', 'Hedef: ' + GRADES[g]].join(' · ');
   $('#mini').innerHTML = `<div class="score">${f2(R.total)}</div><span class="badge">${gradeTxt}</span><span class="note">Hedef: ${GRADES[g]} · ${D.th[g]}</span>`;
   save();
@@ -314,9 +315,30 @@ $('#im').onclick = () => {
 function go(id) { save(); P.cur = id; S = Object.assign(blank(), P.list[id]); P.list[id] = S; S.id = id; init(); }
 $('#pd').onclick = () => {
   const id = 'p' + Date.now(), c = JSON.parse(JSON.stringify(S));
-  c.img = {}; c.f = {}; c.info.proje = (c.info.proje || 'Proje') + ' (kopya)';
+  c.img = {}; c.f = {}; delete c.done; c.info.proje = (c.info.proje || 'Proje') + ' (kopya)';
   P.list[id] = c; go(id);
 };
+// ---- Silme: proje 7 gün "Silinen Projeler"de bekler, sonra kanıt dosyalarıyla kalıcı silinir
+const KEEP_DAYS = 7, DAY = 864e5;
+const daysLeft = p => Math.max(0, Math.ceil((Date.parse(p.deleted) + KEEP_DAYS * DAY - Date.now()) / DAY));
+
+// Aktif proje silinince/kalıcı kaldırılınca yerine boş bir proje açılır (listelerde görünmez)
+function freshCurrent() {
+  const id = 'p' + Date.now();
+  P.list[id] = blank(); P.cur = id; S = P.list[id]; S.id = id;
+}
+function purgeNow(k) {
+  delAllFiles(Object.assign(blank(), P.list[k]));
+  delete P.list[k];
+  if (k === P.cur) freshCurrent();
+}
+// Süresi dolan silinmiş projeleri kalıcı olarak kaldırır (açılışta ve liste çizilirken)
+function purgeDeleted() {
+  let n = 0;
+  Object.keys(P.list).forEach(k => { const p = P.list[k]; if (p.deleted && Date.now() - Date.parse(p.deleted) >= KEEP_DAYS * DAY) { purgeNow(k); n++; } });
+  if (n) save();
+}
+
 let confirmDel = 0;
 $('#px').onclick = () => {
   if (!confirmDel) {
@@ -325,12 +347,11 @@ $('#px').onclick = () => {
     return;
   }
   confirmDel = 0; $('#px').textContent = 'Projeyi sil';
-  delAllFiles(S);
-  delete P.list[P.cur];
-  if (!Object.keys(P.list).length) P.list.p1 = blank();
-  P.cur = Object.keys(P.list)[0]; S = Object.assign(blank(), P.list[P.cur]); P.list[P.cur] = S; S.id = P.cur;
+  S.deleted = new Date().toISOString();
   save();
-  location.hash = ''; // silindikten sonra açılış sayfasındaki proje listesine dön
+  freshCurrent(); save();
+  PTAB = 'x';
+  location.hash = ''; // açılış sayfası, Silinen Projeler sekmesi
 };
 
 
@@ -450,21 +471,93 @@ function drawStart(edit) {
     if (d) setTimeout(() => d.scrollIntoView({ block: 'start' }));
   }
 
-  // Kayıtlı projeler: en son oluşturulan en üstte (düzenleme modunda gizli)
-  const cur = S.olcek, ids = edit ? [] : Object.keys(P.list).filter(k => isUsed(P.list[k])).reverse();
-  $('#saved').hidden = !ids.length;
+  if (!edit) drawProjectList();
+  $('#saved').hidden = edit || !Object.keys(P.list).some(k => isUsed(P.list[k]));
+  if (!edit) setTimeout(() => $('#s_proje').focus());
+}
+
+// Kayıtlı projeler: "Projeler" (devam eden) ve "Biten Projeler" sekmeleri
+let PTAB = 'a';
+const trDate = d => (d || '').split('-').reverse().join('.');
+function drawProjectList() {
+  purgeDeleted();
+  const used = Object.keys(P.list).filter(k => isUsed(P.list[k]));
+  const live = used.filter(k => !P.list[k].deleted);
+  const active = live.filter(k => !P.list[k].done).reverse(); // en son oluşturulan en üstte
+  const done = live.filter(k => P.list[k].done).sort((a, b) => P.list[b].done.localeCompare(P.list[a].done)); // en son biten en üstte
+  const gone = used.filter(k => P.list[k].deleted).sort((a, b) => P.list[b].deleted.localeCompare(P.list[a].deleted)); // en son silinen en üstte
+  $('#pt_a').textContent = active.length; $('#pt_d').textContent = done.length; $('#pt_x').textContent = gone.length;
+  document.querySelectorAll('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === PTAB));
+  const ids = PTAB === 'd' ? done : PTAB === 'x' ? gone : active, cur = S.olcek;
   $('#plist').innerHTML = ids.map(k => {
     const p = Object.assign(blank(), P.list[k]);
     setScale(p.olcek);
     const R = calc(p), kind = p.olcek === 'Y' ? 'Yerleşme' : TIPS[p.tip];
-    return `<button class="pl" data-p="${k}">
-      <span class="pn"><b>${esc(p.info.proje || 'Adsız proje')}</b><span>${esc([p.info.kurum, kind, p.durum === 'Y' ? 'Yeni' : 'Mevcut', (p.info.tarih || '').split('-').reverse().join('.')].filter(Boolean).join(' · '))}</span></span>
+    const name = `<b>${esc(p.info.proje || 'Adsız proje')}</b>`;
+    if (p.deleted) {
+      const left = daysLeft(p);
+      return `<div class="pl del" data-k="${k}">
+        <span class="pn">${name}<span>${esc([p.info.kurum, kind, 'Silinme: ' + trDate(p.deleted.slice(0, 10))].filter(Boolean).join(' · '))}</span>
+          <span class="dl">${left ? `${left} gün sonra kalıcı olarak silinecek` : 'Bugün kalıcı olarak silinecek'}</span></span>
+        <span class="pact"><button type="button" data-restore="${k}">Geri yükle</button><button type="button" class="hard" data-purge="${k}">Şimdi kalıcı sil</button></span>
+      </div>`;
+    }
+    const meta = [p.info.kurum, kind, p.durum === 'Y' ? 'Yeni' : 'Mevcut', p.done ? 'Bitiş: ' + trDate(p.done) : trDate(p.info.tarih)].filter(Boolean).join(' · ');
+    return `<button class="pl ${p.done ? 'fin' : ''}" data-p="${k}">
+      <span class="pn">${name}<span>${esc(meta)}</span></span>
       <span class="pg"><b>${f2(R.total)}</b>${R.grade < 0 ? 'Derece yok' : GRADES[R.grade]}</span>
     </button>`;
-  }).join('');
+  }).join('') || `<div class="note" style="padding:10px 2px">${{
+    a: 'Devam eden proje yok.',
+    d: 'Henüz biten proje yok. Değerlendirme ekranında sağ panelin altındaki “Projeyi sonlandır” ile projeler buraya taşınır.',
+    x: `Silinen proje yok. Silinen projeler burada ${KEEP_DAYS} gün bekler, sonra kalıcı olarak kaldırılır.`
+  }[PTAB]}</div>`;
   setScale(cur);
-  if (!edit) setTimeout(() => $('#s_proje').focus());
 }
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-pt]');
+  if (!b) return;
+  PTAB = b.dataset.pt; drawProjectList();
+});
+// Silinen Projeler: geri yükle / şimdi kalıcı sil (iki tıklamalı onay)
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.dataset.restore) { delete P.list[t.dataset.restore].deleted; save(); drawProjectList(); return; }
+  if (!t.dataset.purge) return;
+  if (!t.classList.contains('sure')) {
+    t.classList.add('sure'); t.textContent = 'Emin misiniz? Tekrar tıklayın';
+    setTimeout(() => { t.classList.remove('sure'); t.textContent = 'Şimdi kalıcı sil'; }, 3000);
+    return;
+  }
+  purgeNow(t.dataset.purge); save(); drawProjectList();
+});
+
+// Projeyi sonlandır / yeniden aç (iki tıklamalı onay)
+let confirmEnd = 0;
+function drawEnd() {
+  const d = S.done;
+  $('#pend').textContent = d ? 'Projeyi yeniden aç' : 'Projeyi sonlandır';
+  $('#pend').classList.toggle('reopen', !!d);
+  $('#pendn').textContent = d
+    ? `Bu proje ${trDate(d)} tarihinde sonlandırıldı. Yeniden açılırsa “Projeler” sekmesine döner.`
+    : 'Sonlandırılan proje açılış sayfasında “Biten Projeler” sekmesine taşınır.';
+  $('#doneBanner').hidden = !d;
+  if (d) $('#doneBanner').innerHTML = `<b>Bu proje ${trDate(d)} tarihinde sonlandırıldı.</b> <span class="note">Bilgiler görüntülenebilir ve rapor alınabilir. Yeniden açmak için sağ panelin altındaki butonu kullanın.</span>`;
+}
+$('#pend').onclick = () => {
+  if (!confirmEnd) {
+    confirmEnd = 1;
+    $('#pend').textContent = S.done ? 'Emin misiniz? Yeniden açmak için tekrar tıklayın' : 'Emin misiniz? Sonlandırmak için tekrar tıklayın';
+    setTimeout(() => { if (confirmEnd) { confirmEnd = 0; drawEnd(); } }, 3000);
+    return;
+  }
+  confirmEnd = 0;
+  if (S.done) { delete S.done; save(); drawEnd(); return; }
+  S.done = new Date().toISOString().slice(0, 10);
+  save();
+  PTAB = 'd';
+  location.hash = ''; // açılış sayfası, Biten Projeler sekmesi
+};
 
 $('#s_ols').onchange = e => { $('#s_tipd').hidden = e.target.value === 'Y'; };
 $('#plist').onclick = e => {

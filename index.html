@@ -45,7 +45,11 @@
         <button type="button" class="rp alt" id="s_cancel" hidden>Vazgeç, değerlendirmeye dön</button>
       </form>
       <div class="card" id="saved">
-        <h3>Kayıtlı projeler</h3>
+        <div class="ptabs" role="tablist">
+          <button type="button" data-pt="a" class="on">Projeler <span id="pt_a"></span></button>
+          <button type="button" data-pt="d">Biten Projeler <span id="pt_d"></span></button>
+          <button type="button" data-pt="x">Silinen Projeler <span id="pt_x"></span></button>
+        </div>
         <div id="plist"></div>
       </div>
     </div>
@@ -58,6 +62,7 @@
 
   <div class="layout">
     <main>
+      <div class="card doneb" id="doneBanner" hidden></div>
       <div class="card" id="fld"><label class="f">Aşama filtresi (Uygulama Rehberi)</label><div class="fl" id="fl" style="margin-top:4px"></div></div>
 
       <div id="tiles" class="tiles"></div>
@@ -84,7 +89,7 @@
           <div><label class="f">Yeni / Mevcut</label><select id="dur"><option value="Y">Yeni</option><option value="M">Mevcut</option></select></div>
           <div class="w2"><label class="f">Hedef sertifika derecesi</label><select id="hdf"></select></div>
         </div>
-        <div class="pa"><button id="pd" title="Bu projenin kopyasını oluştur (kanıt dosyaları hariç)">Projeyi kopyala</button><button id="px" class="del" title="Projeyi ve kanıt dosyalarını sil">Projeyi sil</button></div>
+        <div class="pa"><button id="pd" title="Bu projenin kopyasını oluştur (kanıt dosyaları hariç)">Projeyi kopyala</button></div>
       </details>
       <details class="card info" id="repBox">
         <summary><span>Rapor Bilgileri</span><span class="note" id="repSum"></span></summary>
@@ -96,6 +101,14 @@
         <button id="rp" class="rp">Rapor oluştur (.docx)</button>
         <button id="rz" class="rp alt">Rapor + kanıt dosyaları (.zip)</button>
         <div id="rm" class="note" style="margin-top:6px">Rapor; skorları, notları ve Ekler bölümünde yüklenen kanıt belgelerini (görseller ve PDF sayfaları) içerir. Zip paketi ayrıca tüm orijinal dosyaları ek numaralarıyla içerir.</div>
+      </div>
+      <div class="card endc">
+        <div class="endr">
+          <button id="pend" class="endb">Projeyi sonlandır</button>
+          <button id="px" class="endb del">Projeyi sil</button>
+        </div>
+        <div id="pendn" class="note" style="margin-top:6px">Sonlandırılan proje açılış sayfasında “Biten Projeler” sekmesine taşınır.</div>
+        <div class="note" style="margin-top:4px">Silinen proje 7 gün “Silinen Projeler” sekmesinde bekler; bu sürede geri yüklenebilir, sonra kanıt dosyalarıyla birlikte kalıcı olarak silinir.</div>
       </div>
     </aside>
   </div>
@@ -109,6 +122,6 @@
 <script src="assets/js/report.js"></script>
 <script src="assets/js/ui.js"></script>
 <script src="assets/js/repinfo.js"></script>
-<script>load(); route();</script>
+<script>load(); purgeDeleted(); route();</script>
 </body>
 </html>

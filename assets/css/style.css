@@ -75,6 +75,35 @@ details.fg[open] > summary { border-bottom: 1px solid var(--bd); background: var
 }
 .allinfo { display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--pr); text-decoration: none; }
 .allinfo:hover { text-decoration: underline; }
+/* Açılış · Projeler / Biten Projeler sekmeleri */
+.ptabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bd); margin-bottom: 10px; }
+.ptabs button { background: none; color: var(--mu); font-weight: 600; font-size: 13px; white-space: nowrap; padding: 8px 6px; border-radius: 6px 6px 0 0; margin-bottom: -2px; border-bottom: 2px solid transparent; }
+.ptabs button span { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--hl); color: var(--pr); font-size: 11px; text-align: center; }
+.ptabs button.on { color: var(--pr); border-bottom-color: var(--pr); }
+.ptabs button.on span { background: var(--pr); color: #fff; }
+.pl.fin { background: var(--hl); }
+.pl.fin .pn b::after { content: ' ✓'; color: var(--ok); }
+
+/* Projeyi sonlandır / yeniden aç */
+.endr { display: flex; gap: 6px; }
+.endb { flex: 1; background: var(--cd); color: var(--pr); border: 1px solid var(--pr); font-weight: 600; padding: 9px 6px; }
+.endb:hover { background: var(--hl); }
+.endb.del { color: var(--bad); border-color: var(--bad); }
+.endb.del:hover { background: rgba(192, 57, 43, .08); }
+
+/* Silinen Projeler listesi */
+.pl.del { cursor: default; flex-direction: column; align-items: stretch; gap: 6px; }
+.pl.del .pact { justify-content: flex-end; }
+.pl.del:hover { border-color: var(--bd); background: var(--cd); }
+.pl.del .pn b { color: var(--mu); text-decoration: line-through; }
+.pl .pn .dl { display: block; color: var(--bad); font-size: 11px; margin-top: 2px; }
+.pact { display: flex; gap: 6px; flex: none; }
+.pact button { font-size: 12px; padding: 5px 9px; background: var(--cd); color: var(--pr); border: 1px solid var(--pr); }
+.pact button.hard { color: var(--bad); border-color: var(--bad); }
+.pact button.sure { background: var(--bad); color: #fff; }
+.doneb { border-left: 4px solid var(--ok); background: rgba(27, 138, 75, .08); }
+.doneb .note { display: block; margin-top: 2px; }
+
 /* Sağ panel · Rapor Bilgileri kartındaki grup listesi */
 .rl { display: flex; justify-content: space-between; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--bd); font-size: 13px; color: var(--tx); text-decoration: none; }
 .rl:hover { background: var(--hl); }
