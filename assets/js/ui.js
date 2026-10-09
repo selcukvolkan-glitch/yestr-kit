@@ -8,6 +8,7 @@ const fmtSize = b => b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + ' KB'
 const fileExt = name => (name.match(/\.([^.]+)$/) || [, 'DOSYA'])[1].toUpperCase().slice(0, 4);
 
 let ACTIVE = 0;           // seçili modül kutusu
+const THOPEN = {};        // açık tema başlıkları
 let sugOpen = false;      // öneri listesi açık mı
 document.addEventListener('toggle', e => { if (e.target.id === 'sg') sugOpen = e.target.open; }, true);
 
@@ -15,16 +16,19 @@ const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.dwg,.dxf,.zip,.rar,.txt,.
 
 // ---- Kriter satırı
 function row(c) {
-  const id = c.id, z = isMandatory(c, S), m = maxCredit(c, S), v = S.v[id] ?? '';
+  const id = c.id, z = isMandatory(c, S), m = maxCredit(c, S), e = earnableCredit(c, S), v = S.v[id] ?? '';
   const stage = c.s ? `<span class="st">${STAGES[c.s]}</span>` : '';
   const req = c.r ? `<details class="rq"><summary>Gereklilik</summary>${esc(c.r)}</details>` : '';
   const evid = ['Yok', 'Hazırlanıyor', 'Tamam'].map(x => `<option ${(S.e[id] || 'Yok') == x ? 'selected' : ''}>${x}</option>`).join('');
+  const zLabel = c.zg ? `Zorunlu (${GRADES[c.zg]} ve üstü)` : 'Zorunlu';
+  const mxText = !m ? '' : e ? 'maks ' + num(m) : `azami ${num(m)} · kredi kazanılamaz`;
+  const ncNote = m && !e ? `<div class="note" style="margin:-2px 0 6px">Yalnızca Evet/Hayır olarak değerlendirilir; ${num(m)} kredi modülün azami kredisine dahildir ancak kazanılamaz (YeS-TR Puan Hesaplama v1.3).</div>` : '';
   return `<div class="r" data-id="${id}">
-  <div class="h"><b>${c.c}</b>${stage}${z ? '<span class="z">Zorunlu</span>' : ''}<span class="st" data-c="${id}" hidden></span><span class="mxv">${m ? 'maks ' + num(m) : ''}</span></div>
-  <div class="t">${esc(c.n)}</div>${req}
+  <div class="h"><b>${c.c}</b>${stage}${z ? `<span class="z">${zLabel}</span>` : ''}<span class="st" data-c="${id}" hidden></span><span class="mxv">${mxText}</span></div>
+  <div class="t">${esc(c.n)}</div>${ncNote}${req}
   <div class="ctl">
     ${z ? `<label class="chk"><input type="checkbox" data-a="z" ${S.z[id] ? 'checked' : ''}> Şart sağlandı</label>` : ''}
-    ${m ? `<input type="number" inputmode="decimal" min="0" max="${m}" step="any" data-a="v" value="${v}" placeholder="0"><button data-a="f">Tam</button>` : ''}
+    ${e ? `<input type="number" inputmode="decimal" min="0" max="${e}" step="any" data-a="v" value="${v}" placeholder="0"><button data-a="f">Tam</button>` : ''}
     <select data-a="e" title="Kanıt durumu">${evid}</select>
     <input type="text" data-a="n" placeholder="Proje çözümü / not" value="${esc(S.n[id] || '')}">
   </div>
@@ -46,13 +50,33 @@ function renderMods() {
     <span class="ts" id="mh${i}"></span>
     <span class="pb"><i id="mb${i}"></i></span>
   </button>`).join('');
-  let th = '', h = '';
-  D.crit.filter(c => c.m === ACTIVE && (!S.a || c.s === S.a)).forEach(c => {
-    if (c.t !== th) { th = c.t; h += `<div class="th">${esc(th)}</div>`; }
-    h += row(c);
-  });
+  const list = D.crit.filter(c => c.m === ACTIVE && (!S.a || c.s === S.a));
+  const themes = [...new Set(list.map(c => c.t))];
+  // Her tema açılır-kapanır başlık olarak gösterilir
+  let h = themes.map(t => {
+    const rows = list.filter(c => c.t === t).map(row).join('');
+    return `<details class="tg" data-th="${esc(t)}" ${THOPEN[t] ? 'open' : ''}><summary><span class="tgn">${esc(t)}</span><span class="tgs" data-ts="${esc(t)}"></span></summary>${rows}</details>`;
+  }).join('');
   if (!h) h = '<div class="note" style="padding:12px">Seçili aşamada bu modüle ait kriter yok.</div>';
-  $('#mods').innerHTML = `<div class="mp"><div class="mph"><b>${D.mods[ACTIVE]} · ${esc(moduleName(ACTIVE))}</b><span id="mph"></span></div>${h}</div>`;
+  const tools = themes.length ? '<span class="tga"><button data-fold="1">Tümünü aç</button><button data-fold="0">Tümünü kapat</button></span>' : '';
+  $('#mods').innerHTML = `<div class="mp"><div class="mph"><b>${D.mods[ACTIVE]} · ${esc(moduleName(ACTIVE))}</b><span id="mph"></span>${tools}</div>${h}</div>`;
+}
+
+// Tema başlıklarının özetleri: kriter sayısı, kazanılan/azami kredi, eksik zorunlu
+function themeStats() {
+  document.querySelectorAll('[data-ts]').forEach(el => {
+    const cs = D.crit.filter(c => c.m === ACTIVE && c.t === el.dataset.ts);
+    const got = cs.reduce((a, c) => a + givenCredit(c, S), 0);
+    const opts = cs.filter(c => c.g).map(c => maxCredit(c, S)); // seçeneklerden yalnızca en yükseği sayılır
+    const max = cs.filter(c => !c.g).reduce((a, c) => a + maxCredit(c, S), 0) + (opts.length ? Math.max(...opts) : 0);
+    const miss = cs.filter(c => isMandatory(c, S) && !S.z[c.id]).length;
+    // Tamamlandı: kazanılabilir kredilerin tamamı alınmış ve zorunlu eksik yok
+    const earnOpts = cs.filter(c => c.g).map(c => earnableCredit(c, S));
+    const earnMax = cs.filter(c => !c.g).reduce((a, c) => a + earnableCredit(c, S), 0) + (earnOpts.length ? Math.max(...earnOpts) : 0);
+    const done = !miss && got + EPS >= earnMax;
+    el.closest('details.tg').classList.toggle('done', done);
+    el.innerHTML = `${done ? '<b class="tgd">✓ Tamamlandı</b> · ' : ''}${cs.length} kriter${max ? ` · ${num(got)}/${num(max)} kredi` : ''}${miss ? ` · <b class="tgz">${miss} zorunlu eksik</b>` : ''}`;
+  });
 }
 
 document.addEventListener('click', e => {
@@ -60,6 +84,12 @@ document.addEventListener('click', e => {
   if (!t) return;
   ACTIVE = +t.dataset.mi;
   renderMods(); update();
+});
+document.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('details.tg')) THOPEN[e.target.dataset.th] = e.target.open; }, true);
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-fold]');
+  if (!b) return;
+  document.querySelectorAll('details.tg').forEach(d => { d.open = b.dataset.fold === '1'; THOPEN[d.dataset.th] = d.open; });
 });
 
 // ---- Kanıt dosyaları
@@ -155,6 +185,7 @@ function update() {
     if (d) { d.classList.toggle('ok', !!x.met[g]); d.title = x.met[g] ? `${GRADES[g]} için modül şartı sağlandı` : `${GRADES[g]} için modül şartı sağlanmadı`; }
   });
   const am = R.mods[ACTIVE], mph = $('#mph');
+  themeStats();
   if (mph && am) mph.textContent = `Ağırlık %${num(am.w * 100)} · ${num(am.raw)}/${num(am.max)} kredi · ağırlıklı ${f2(am.wc)}${ACTIVE < 5 ? (am.min ? ` · ${GRADES[g]} şartı ≥ ${am.min[g]}` : ' · tema kapsam şartı') : ' · toplama dahil değil'}`;
 
   const chip = (ok, t) => `<span class="chip ${ok ? 'g' : 'r'}">${t}</span>`;
@@ -243,7 +274,7 @@ document.addEventListener('input', e => {
   if (a === 'e') S.e[id] = t.value;
   if (a === 'z') S.z[id] = t.checked;
   if (a === 'v') {
-    const x = Math.min(Math.max(+t.value || 0, 0), maxCredit(c, S));
+    const x = Math.min(Math.max(+t.value || 0, 0), earnableCredit(c, S));
     if (t.value !== '' && +t.value !== x) t.value = x;
     S.v[id] = x; grpFix(c, id);
   }
@@ -253,7 +284,7 @@ document.addEventListener('input', e => {
 document.addEventListener('click', e => {
   const t = e.target;
   if (t.dataset.a !== 'f') return;
-  const r = t.closest('.r'), id = r.dataset.id, c = D.crit.find(x => x.id === id), m = maxCredit(c, S);
+  const r = t.closest('.r'), id = r.dataset.id, c = D.crit.find(x => x.id === id), m = earnableCredit(c, S);
   S.v[id] = m; r.querySelector('[data-a=v]').value = m; grpFix(c, id); update();
 });
 

@@ -48,13 +48,21 @@ function isMandatory(c, S) {
   return false;
 }
 
+// Modülün azami kredisine giren değer (nc kriterlerinde de sayılır).
 function maxCredit(c, S) { const a = critValue(c, S); return a === 'Z' ? 0 : a; }
 
-// Girilen krediyi 0..maks aralığına sıkıştırır.
-function givenCredit(c, S) { return Math.min(Math.max(+S.v[c.id] || 0, 0), maxCredit(c, S)); }
+// Kazanılabilir kredi: nc (yalnızca Evet/Hayır) kriterlerde kredi kazanılamaz (v1.3 Excel).
+function earnableCredit(c, S) { return c.nc ? 0 : maxCredit(c, S); }
+
+// Zorunluluğun arandığı en düşük derece (zg yoksa tüm dereceler).
+const mandatoryFrom = c => c.zg || 0;
+
+// Girilen krediyi 0..kazanılabilir aralığına sıkıştırır.
+function givenCredit(c, S) { return Math.min(Math.max(+S.v[c.id] || 0, 0), earnableCredit(c, S)); }
 
 function calc(S) {
-  const R = { mods: [], total: 0, miss: [] };
+  const R = { mods: [], total: 0 };
+  const missing = []; // sağlanmamış zorunlu kriterler
   D.mods.forEach((m, i) => {
     let raw = 0, max = 0;
     const optVal = [], optMax = [];
@@ -63,7 +71,7 @@ function calc(S) {
       const x = maxCredit(c, S), u = givenCredit(c, S);
       // Seçenekli kriterlerde (c.g) yalnızca en yüksek seçenek sayılır
       if (c.g) { optVal.push(u); optMax.push(x); } else { raw += u; max += x; }
-      if (isMandatory(c, S) && !S.z[c.id]) R.miss.push(c.c);
+      if (isMandatory(c, S) && !S.z[c.id]) missing.push(c);
     });
     if (optVal.length) { raw += Math.max(...optVal); max += Math.max(...optMax); }
 
@@ -78,7 +86,10 @@ function calc(S) {
     R.mods.push({ m, raw, max, w, wc: raw * w, min, met });
   });
   R.total = R.mods.slice(0, 5).reduce((a, x) => a + x.wc, 0);
-  R.ok = GRADES.map((_, g) => R.total + EPS >= D.th[g] && R.mods.slice(0, 5).every(x => x.met[g]) && !R.miss.length);
+  // missFor(g): g derecesi için aranan ama sağlanmamış zorunlu kriter kodları
+  R.missFor = g => missing.filter(c => mandatoryFrom(c) <= g).map(c => c.c);
+  R.miss = R.missFor(S.hedef ?? 0); // hedef derece için eksikler (arayüz ve rapor)
+  R.ok = GRADES.map((_, g) => R.total + EPS >= D.th[g] && R.mods.slice(0, 5).every(x => x.met[g]) && !R.missFor(g).length);
   R.grade = R.ok.lastIndexOf(true);
   return R;
 }
@@ -87,11 +98,11 @@ function calc(S) {
 // önce eksik zorunlular, sonra modül şartları, en son toplam kredi açığı.
 function suggest(S, R, g) {
   const out = [], done = {};
-  D.crit.forEach(c => { if (isMandatory(c, S) && !S.z[c.id]) out.push({ c, why: 'Zorunlu kriter', gain: 0 }); });
+  D.crit.forEach(c => { if (isMandatory(c, S) && !S.z[c.id] && mandatoryFrom(c) <= g) out.push({ c, why: 'Zorunlu kriter', gain: 0 }); });
 
   const cand = D.crit
-    .filter(c => c.m < 6 && maxCredit(c, S) > givenCredit(c, S) && !(c.g && c.id.endsWith('-2')))
-    .map(c => ({ c, gain: (maxCredit(c, S) - givenCredit(c, S)) * R.mods[c.m].w }))
+    .filter(c => c.m < 6 && earnableCredit(c, S) > givenCredit(c, S) && !(c.g && c.id.endsWith('-2')))
+    .map(c => ({ c, gain: (earnableCredit(c, S) - givenCredit(c, S)) * R.mods[c.m].w }))
     .filter(x => x.gain > 0)
     .sort((a, b) => b.gain - a.gain);
 

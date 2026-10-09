@@ -1,12 +1,12 @@
 :root {
   --bg: #f3f6fb; --cd: #fff; --tx: #10243e; --mu: #5b6b82; --pr: #00527a; --nv: #003a57;
-  --ac: #d74921; --ok: #1b8a4b; --bad: #c0392b; --bd: #d6deea; --hl: #e8f0fb;
+  --ac: #d74921; --ok: #1b8a4b; --bad: #c0392b; --bd: #d6deea; --hl: #e8f0fb; --done: #cde3f6;
   --side: 400px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0b1626; --cd: #13243b; --tx: #e6edf7; --mu: #9bb0cc; --pr: #4aa3d0; --nv: #08121f;
-    --ac: #f0663a; --ok: #4cc27f; --bad: #ff7b6b; --bd: #27405f; --hl: #1b3150;
+    --ac: #f0663a; --ok: #4cc27f; --bad: #ff7b6b; --bd: #27405f; --hl: #1b3150; --done: #1f4568;
     color-scheme: dark;
   }
 }
@@ -131,9 +131,28 @@ textarea { height: 90px; font: 12px monospace; }
 
 /* Seçili modülün kriter paneli */
 .mp { background: var(--cd); border: 1px solid var(--bd); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
-.mph { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 11px; background: var(--hl); color: var(--pr); }
-.mph span { font-size: 12px; color: var(--mu); }
-.th { margin: 10px 10px 2px; font-size: 12px; font-weight: 600; color: var(--mu); text-transform: uppercase; }
+/* Seçili modül kutusuyla aynı koyu mavi */
+.mph { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 11px; background: var(--pr); color: #fff; }
+.mph span { font-size: 12px; color: #dbe8f5; }
+.mph .tga { display: flex; gap: 6px; width: 100%; }
+.mph .tga button { background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, .7); font-size: 12px; padding: 3px 9px; }
+.mph .tga button:hover { background: rgba(255, 255, 255, .15); border-color: #fff; }
+
+/* Açılır-kapanır tema başlıkları */
+details.tg { border-top: 1px solid var(--bd); }
+details.tg > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px; user-select: none; }
+details.tg > summary::-webkit-details-marker { display: none; }
+details.tg > summary::before { content: '▸'; color: var(--pr); font-size: 14px; transition: transform .15s; }
+details.tg[open] > summary::before { transform: rotate(90deg); }
+details.tg > summary:hover { background: var(--hl); }
+details.tg[open] > summary { background: var(--hl); }
+.tgn { font-size: 13px; font-weight: 600; color: var(--pr); text-transform: uppercase; }
+.tgs { margin-left: auto; font-size: 12px; color: var(--mu); }
+.tgz { color: var(--bad); font-weight: 600; }
+/* Tamamlanmış tema: kapalıyken açık mavi */
+details.tg.done:not([open]) > summary { background: var(--done); }
+details.tg.done:not([open]) > summary:hover { filter: brightness(.97); }
+.tgd { color: var(--pr); font-weight: 600; }
 .r { padding: 8px 10px; border-top: 1px solid var(--bd); }
 .r .t { font-size: 13px; margin: 2px 0 6px; }
 .h { display: flex; gap: 6px; align-items: center; font-size: 13px; }

@@ -82,8 +82,9 @@ const note=(t)=>para(t,{it:true,color:MUT,size:18});
 const idx=reportModuleOrder();
 const crit=m=>D.crit.filter(c=>c.m===m);
 const eAd=c=>'Ek-'+c.id.replace(/ /g,'');
-const cap=c=>isZ(c,S)?(mx(c,S)?'Zorunlu + '+n2(mx(c,S)):'Zorunlu'):n2(mx(c,S));
-const alinan=c=>{const id=c.id;if(!filled)return ph('…');if(isZ(c,S)&&!mx(c,S))return S.z[id]?'Sağlandı':'Sağlanmadı';return n2(givenCredit(c,S))+(isZ(c,S)?(S.z[id]?' · şart ✓':' · şart ✗'):'')};
+const zFrom=c=>c.zg?` (${G[c.zg]} ve üstü)`:'';
+const cap=c=>isZ(c,S)?(earnableCredit(c,S)?'Zorunlu'+zFrom(c)+' + '+n2(mx(c,S)):(mx(c,S)?`Zorunlu${zFrom(c)} (azami ${n2(mx(c,S))}, kazanılamaz)`:'Zorunlu'+zFrom(c))):n2(mx(c,S));
+const alinan=c=>{const id=c.id;if(!filled)return ph('…');if(isZ(c,S)&&!earnableCredit(c,S))return S.z[id]?'Sağlandı':'Sağlanmadı';return n2(givenCredit(c,S))+(isZ(c,S)?(S.z[id]?' · şart ✓':' · şart ✗'):'')};
 const ek=c=>S.e[c.id]||(filled?'Yok':'…');
 const kids=[];
 
@@ -164,7 +165,7 @@ kids.push(h1('4. YeS-TR SERTİFİKA SİSTEMİ'),
 
 // ---- 5 Sonuçlar
 const mrows=idx.map(i=>{const x=R.mods[i],m=D.mods[i];return [{t:m,bold:true,color:NAVY},Math.round(x.w*10000)/100+'%',filled?`${n2(x.raw)} / ${n2(x.max)}`:ph(`… / ${n2(x.max)}`),filled?f2(x.wc):ph('…'),m==='İNO'?'—':(x.min?String(x.min[g]):'Kapsam'),m==='İNO'?'—':(filled?{t:x.met[g]?'Sağlandı':'Eksik',color:x.met[g]?GRN:RED,bold:true}:ph('…'))]});
-const zrows=D.crit.filter(c=>isZ(c,S)).map(c=>[c.c,c.n,STG[c.s],filled?{t:S.z[c.id]?'Sağlandı':'Eksik',bold:true,color:S.z[c.id]?GRN:RED}:ph('…')]);
+const zrows=D.crit.filter(c=>isZ(c,S)).map(c=>[c.c,c.n+(c.zg?` (${G[c.zg]} ve üstü dereceler için zorunlu)`:''),STG[c.s],filled?{t:S.z[c.id]?'Sağlandı':'Eksik',bold:true,color:S.z[c.id]?GRN:RED}:ph('…')]);
 const cond=[['Toplam ağırlıklı kredi',`≥ ${TH[g]}`,filled?f2(R.total):ph('…'),filled?{t:R.total+EPS>=TH[g]?'Sağlandı':'Eksik',bold:true,color:R.total+EPS>=TH[g]?GRN:RED}:ph('…')]];
 R.mods.slice(0,5).forEach(x=>cond.push([`${x.m} modül kredisi`,(x.min?`≥ ${x.min[g]}`:'Her temadan ≥1 kredi'),filled?f2(x.wc):ph('…'),filled?{t:x.met[g]?'Sağlandı':'Eksik',bold:true,color:x.met[g]?GRN:RED}:ph('…')]));
 cond.push(['Zorunlu kriterler','Tümü sağlanmalı',filled?(R.miss.length?R.miss.length+' eksik':'Tamam'):ph('…'),filled?{t:R.miss.length?'Eksik':'Sağlandı',bold:true,color:R.miss.length?RED:GRN}:ph('…')]);
@@ -176,7 +177,7 @@ kids.push(h1('5. DEĞERLENDİRME SONUÇLARI'),
  ...CHP,h2(`5.2 Hedef derece (${G[g]}) uygunluk analizi`),
  tbl([3200,2200,2000,2238],['Koşul','Gerekli','Mevcut','Durum'],cond),
  h2('5.3 Zorunlu kriter kontrol listesi'),
- note('Zorunlu kriterlerden biri dahi sağlanmazsa hiçbir sertifika derecesi alınamaz.'),
+ note('Zorunlu kriterlerden biri dahi sağlanmazsa hiçbir sertifika derecesi alınamaz.'+(D.crit.some(c=>c.zg&&isZ(c,S))?' Derece belirtilen zorunlu kriterler yalnızca o derece ve üstü için aranır.':'')),
  tbl([1300,4300,2400,1638],['Kriter','Açıklama','Aşama','Durum'],zrows,{size:18}),
  h2('5.4 Güçlü yönler ve geliştirme alanları'),
  tbl([4819,4819],['Güçlü yönler','Geliştirme alanları'],[[ph('[…]'),ph('[…]')],[ph('[…]'),ph('[…]')],[ph('[…]'),ph('[…]')]]));
