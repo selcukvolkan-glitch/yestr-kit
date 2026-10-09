@@ -188,10 +188,10 @@ function update() {
   themeStats();
   if (mph && am) mph.textContent = `Ağırlık %${num(am.w * 100)} · ${num(am.raw)}/${num(am.max)} kredi · ağırlıklı ${f2(am.wc)}${ACTIVE < 5 ? (am.min ? ` · ${GRADES[g]} şartı ≥ ${am.min[g]}` : ' · tema kapsam şartı') : ' · toplama dahil değil'}`;
 
-  const chip = (ok, t) => `<span class="chip ${ok ? 'g' : 'r'}">${t}</span>`;
+  const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : 'no'}">${t}</span>`;
   const gradeTxt = R.grade < 0 ? 'Derece alınamadı' : GRADES[R.grade];
-  let h = `<div class="big"><div class="score">${f2(R.total)}</div><div><span class="badge">${gradeTxt}</span><div class="note">Toplam ağırlıklı kredi (İNO hariç)</div></div></div>
-  <div class="note" style="margin-top:6px">Hedef: <b>${GRADES[g]}</b> (≥ ${D.th[g]})</div><div class="chips">`;
+  let h = `<div class="big"><div class="score">${f2(R.total)}</div><span class="badge">${gradeTxt}</span></div>
+  <div class="note sline"><span>Toplam ağırlıklı kredi (İNO hariç)</span><span>Hedef: <b>${GRADES[g]}</b> (≥ ${D.th[g]})</span></div><div class="chips">`;
   h += chip(R.total + EPS >= D.th[g], `Toplam ${f2(R.total)} / ${D.th[g]}`);
   R.mods.slice(0, 5).forEach(x => h += chip(x.met[g], x.min ? `${x.m} ${f2(x.wc)} / ${x.min[g]}` : `${x.m} kapsam şartı`));
   h += chip(!R.miss.length, R.miss.length ? `Eksik zorunlu: ${R.miss.length}` : 'Zorunlular tamam') + '</div>';
@@ -213,6 +213,7 @@ function update() {
   const nCrit = D.crit.filter(c => ((S.f && S.f[c.id]) || []).length).length;
   h += `<div class="note sec">Kanıt durumu: ${done}/${total} kriter tamamlandı<br>Kanıt dosyası: ${nFiles} dosya · ${nCrit} kriter</div>`;
   $('#sum').innerHTML = h;
+  drawRepCard();
   $('#infoSum').textContent = [S.info.proje || 'Adsız proje', D.scale === 'Y' ? 'Yerleşme' : TIPS[S.tip], S.durum === 'Y' ? 'Yeni' : 'Mevcut', 'Hedef: ' + GRADES[g]].join(' · ');
   $('#mini').innerHTML = `<div class="score">${f2(R.total)}</div><span class="badge">${gradeTxt}</span><span class="note">Hedef: ${GRADES[g]} · ${D.th[g]}</span>`;
   save();
@@ -398,32 +399,59 @@ async function runReport(withPackage) {
 $('#rp').onclick = () => runReport(false);
 $('#rz').onclick = () => runReport(true);
 
-// ---- Açılış sayfası ve sayfa geçişleri (#degerlendirme = değerlendirme ekranı)
-const WORK_HASH = '#degerlendirme';
+// ---- Açılış sayfası ve sayfa geçişleri
+// #degerlendirme = değerlendirme ekranı, #rapor = aktif projenin rapor bilgileri sayfası
+// (açılış formu düzenleme modunda; Proje Bilgileri kutusu gizlenir, yalnızca Rapor Bilgileri görünür)
+const WORK_HASH = '#degerlendirme', EDIT_HASH = '#rapor';
 const isUsed = p => !!(p.info && p.info.proje) || ['v', 'z', 'f', 'n'].some(k => p[k] && Object.keys(p[k]).length);
 
 function route() {
-  const work = location.hash === WORK_HASH;
+  const work = location.hash === WORK_HASH, edit = location.hash === EDIT_HASH && isUsed(S);
   $('#start').hidden = work;
   $('#work').hidden = !work;
-  $('#home').hidden = !work;
-  if (work) { init(); } else { drawStart(); $('#hsub').textContent = 'Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir'; }
+  $('#home').hidden = !(work || edit);
+  if (work) { init(); } else { drawStart(edit); $('#hsub').textContent = 'Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir'; }
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
 $('#home').onclick = e => { e.preventDefault(); location.hash = ''; };
+$('#s_cancel').onclick = () => { location.hash = WORK_HASH; };
 
-function drawStart() {
+function drawStart(edit) {
   $('#s_tip').innerHTML = TIPS.map((t, i) => `<option value="${i}">${t}</option>`).join('');
   $('#s_hdf').innerHTML = GRADES.map((t, i) => `<option value="${i}">${t}</option>`).join('');
   $('#sf').reset();
-  $('#s_tip').value = 1; $('#s_hdf').value = 2;
-  $('#s_tarih').value = new Date().toISOString().slice(0, 10);
-  $('#s_tipd').hidden = false;
+  $('#sf').classList.toggle('edit', edit);
   $('#s_err').hidden = true;
+  $('#s_cancel').hidden = !edit;
+  $('#s_card').hidden = edit; // proje bilgileri sağ paneldeki karttan düzenlenir
+  $('#s_go').textContent = edit ? 'Kaydet ve değerlendirmeye dön →' : 'Değerlendirmeye başla →';
+  $('.intro h2').textContent = edit ? `${S.info.proje} · Rapor Bilgileri` : 'Yeni bir YeS-TR ön değerlendirmesi başlatın';
+  $('.intro p').textContent = edit
+    ? 'Rapordaki [Doldurunuz] alanlarını doldurun. Kaydedince değerlendirme ekranına dönülür; kriter girişleri ve kanıt dosyaları korunur.'
+    : 'Proje bilgilerini girin; kriter bazında skorlama, kanıt dosyası takibi ve Word raporu için değerlendirme ekranına geçilecektir. Rapor bilgileri isteğe bağlıdır, sonradan da doldurulabilir. Veriler yalnızca bu cihazda saklanır.';
+  if (edit) {
+    $('#s_proje').value = S.info.proje || ''; $('#s_kurum').value = S.info.kurum || '';
+    $('#s_yesu').value = S.info.yesu || ''; $('#s_tarih').value = S.info.tarih || '';
+    $('#s_ols').value = S.olcek || 'B'; $('#s_tip').value = S.tip; $('#s_dur').value = S.durum; $('#s_hdf').value = S.hedef;
+    RF = repOf(S);
+  } else {
+    $('#s_tip').value = 1; $('#s_hdf').value = 2;
+    $('#s_tarih').value = new Date().toISOString().slice(0, 10);
+    RF = repBlank();
+  }
+  $('#s_tipd').hidden = $('#s_ols').value === 'Y';
+  renderRepForm(edit);
+  if (edit && PENDING_GROUP) {
+    // Sağ paneldeki karttan seçilen grup açık gelir
+    openGroup(PENDING_GROUP);
+    const d = document.querySelector(`#repf details[data-g="${PENDING_GROUP}"]`);
+    PENDING_GROUP = null;
+    if (d) setTimeout(() => d.scrollIntoView({ block: 'start' }));
+  }
 
-  // Kayıtlı projeler: en son oluşturulan en üstte
-  const cur = S.olcek, ids = Object.keys(P.list).filter(k => isUsed(P.list[k])).reverse();
+  // Kayıtlı projeler: en son oluşturulan en üstte (düzenleme modunda gizli)
+  const cur = S.olcek, ids = edit ? [] : Object.keys(P.list).filter(k => isUsed(P.list[k])).reverse();
   $('#saved').hidden = !ids.length;
   $('#plist').innerHTML = ids.map(k => {
     const p = Object.assign(blank(), P.list[k]);
@@ -435,7 +463,7 @@ function drawStart() {
     </button>`;
   }).join('');
   setScale(cur);
-  setTimeout(() => $('#s_proje').focus());
+  if (!edit) setTimeout(() => $('#s_proje').focus());
 }
 
 $('#s_ols').onchange = e => { $('#s_tipd').hidden = e.target.value === 'Y'; };
@@ -450,13 +478,18 @@ $('#sf').onsubmit = e => {
   e.preventDefault();
   const proje = $('#s_proje').value.trim();
   if (!proje) { $('#s_err').hidden = false; $('#s_proje').focus(); return; }
-  const p = blank(), olcek = $('#s_ols').value;
-  p.info = { proje, kurum: $('#s_kurum').value.trim(), yesu: $('#s_yesu').value.trim(), tarih: $('#s_tarih').value };
+  const edit = $('#sf').classList.contains('edit');
+  const p = edit ? S : blank(), olcek = $('#s_ols').value;
+  p.info = Object.assign(p.info || {}, { proje, kurum: $('#s_kurum').value.trim(), yesu: $('#s_yesu').value.trim(), tarih: $('#s_tarih').value });
+  if (edit && olcek !== p.olcek) p.a = 0;
   p.olcek = olcek;
   p.tip = olcek === 'Y' ? 0 : +$('#s_tip').value;
   p.durum = $('#s_dur').value;
   p.hedef = +$('#s_hdf').value;
-  if (!isUsed(S)) {
+  p.rep = repFromForm();
+  if (edit) {
+    save();
+  } else if (!isUsed(S)) {
     // Boş duran aktif projeyi yeniden kullan
     S = Object.assign(p, { id: P.cur });
     P.list[P.cur] = S;
@@ -468,6 +501,3 @@ $('#sf').onsubmit = e => {
   }
   location.hash = WORK_HASH;
 };
-
-load();
-route();

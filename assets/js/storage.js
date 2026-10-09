@@ -1,8 +1,27 @@
 // Kalıcı saklama: projeler localStorage'da, kanıt dosyaları IndexedDB'de (yalnızca bu cihazda).
 
 const STORE_KEY = 'yestr2';
+// Rapor bilgileri (açılış sayfasındaki isteğe bağlı gruplar; rapordaki [Doldurunuz] alanları)
+const TAKIP_ADIMLAR = ['YESU sözleşmesi', 'Başvuru ücreti ödemesi', 'Başvuru dosyası yükleme', 'Değerlendirme / düzeltme', 'Taslak sertifika incelemesi', 'Sertifika teslimi'];
+const repBlank = () => ({
+  kunye: {},                       // raporNo, konum, alan, kat, ruhsat, mimar, yuklenici
+  pay: { yesu: {}, sahip: {}, yesdu: {}, muellif: {} }, // her biri: kisi, no, iletisim
+  ekip: [],                        // [{ ad, disiplin, gorev, sicil }]
+  guclu: '', gelisim: '',          // her satır bir madde
+  takip: TAKIP_ADIMLAR.map(() => ({})), // [{ plan, gercek, not }]
+  eylem: [],                       // [{ eylem, sorumlu, termin, kriter }]
+  onay: {}                         // hazirlayan, hazirlayanT, kontrol, kontrolT, onaylayan, onaylayanT
+});
+// Eksik alanları varsayılanlarla tamamlar (eski projeler için)
+function repOf(p) {
+  const r = Object.assign(repBlank(), JSON.parse(JSON.stringify((p && p.rep) || {})));
+  r.pay = Object.assign(repBlank().pay, r.pay);
+  r.takip = TAKIP_ADIMLAR.map((_, i) => (r.takip && r.takip[i]) || {});
+  return r;
+}
+
 // f: { kriterId: [dosyaAnahtarı, ...] }  ·  img: eski sürümden kalan fotoğraflar (açılışta f'ye taşınır)
-const blank = () => ({ info: {}, olcek: 'B', tip: 1, durum: 'Y', hedef: 2, a: 0, v: {}, z: {}, n: {}, e: {}, f: {}, img: {} });
+const blank = () => ({ info: {}, olcek: 'B', tip: 1, durum: 'Y', hedef: 2, a: 0, v: {}, z: {}, n: {}, e: {}, f: {}, img: {}, rep: repBlank() });
 
 let S = blank();                    // aktif proje
 let P = { cur: 'p1', list: {} };    // tüm projeler

@@ -67,6 +67,9 @@ const dsh={style:BorderStyle.DASHED,size:8,color:BLUE},DB={top:dsh,bottom:dsh,le
 const run=(t,o={})=>new TextRun({text:String(t),font:'Calibri',size:o.size||21,bold:o.bold,italics:o.it,color:o.color});
 const para=(t,o={})=>new Paragraph({children:Array.isArray(t)?t:[run(t,o)],alignment:o.al,keepNext:o.kn,spacing:{before:o.b||0,after:o.a??110,line:288},pageBreakBefore:o.pb,numbering:o.bul?{reference:'bul',level:0}:undefined});
 const ph=(t='[Doldurunuz]')=>({t,color:MUT,it:true});
+// Rapor bilgileri (açılış formu): dolu alan değeri, boşsa yer tutucu
+const RP=repOf(S),K=RP.kunye,hv=x=>x!=null&&String(x).trim()!=='',val=(x,d)=>hv(x)?String(x).trim():ph(d),trd=d=>hv(d)?d.split('-').reverse().join('.'):'';
+const lines=t=>String(t||'').split('\n').map(x=>x.trim()).filter(Boolean);
 const cell=(c,w,o={})=>{if(c&&c.t!==undefined&&!Array.isArray(c)){o=Object.assign({},o,c);c=c.t}
  const kids=(Array.isArray(c)?c:[c]).map(x=>(typeof x==='string'||typeof x==='number')?para(x,{size:o.size||19,bold:o.bold,color:o.color,it:o.it,al:o.al,a:30}):x);
  return new TableCell({width:{size:w,type:WidthType.DXA},borders:o.dash?DB:B,columnSpan:o.span,verticalAlign:VerticalAlign.CENTER,margins:{top:70,bottom:70,left:110,right:110},shading:o.fill?{type:ShadingType.CLEAR,fill:o.fill,color:'auto'}:undefined,children:kids})};
@@ -108,7 +111,7 @@ const CHP=CH?[para('Şekil 1. Modül bazlı ağırlıklı krediler (azami / alı
 const cover=[new Paragraph({children:[new ImageRun({type:'png',data:LOGO,transformation:{width:300,height:65}})],spacing:{after:320}}),
  new Table({width:{size:W,type:WidthType.DXA},columnWidths:[W],rows:[new TableRow({height:{value:4200,rule:'atLeast'},children:[cell([para('YEŞİL SERTİFİKA SİSTEMİ  ·  YeS-TR',{size:24,bold:true,color:'FFD2C2',a:200}),para(`${YY?'YERLEŞME':'BİNA'} DEĞERLENDİRME RAPORU`,{size:56,bold:true,color:'FFFFFF',a:160}),para((YY?dur:`${dur}  ·  ${tip}`),{size:30,color:'FFFFFF',a:200}),para('Kriter bazlı değerlendirme, skorlama ve kanıt dosyası',{size:22,color:'DCE6F2'})],W,{fill:NAVY})]})]}),
  gap(),gap(),
- kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Hedef sertifika derecesi',G[g]],['Hazırlayan (YESU)',info.yesu||ph()],['Rapor tarihi',info.tarih||ph()],['Rapor no / Sürüm',ph('YS-0000 / v1.0')]]),
+ kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Hedef sertifika derecesi',G[g]],['Hazırlayan (YESU)',info.yesu||ph()],['Rapor tarihi',info.tarih||ph()],['Rapor no / Sürüm',val(K.raporNo,'YS-0000 / v1.0')]]),
  gap(),note(`Bu rapor, YeS-TR ${YY?'Yerleşme':'Bina'} Değerlendirme Kılavuzu esas alınarak hazırlanan ön değerlendirme ve kanıt dosyasıdır. Sertifika, yalnızca Değerlendirme Kuruluşunun (Türkiye Çevre Ajansı) onayı ile geçerlilik kazanır.`)];
 const toc=[h1('İÇİNDEKİLER',false),new TableOfContents('İçindekiler',{hyperlink:true,headingStyleRange:'1-2'}),note('Not: İçindekiler alanı Word\'de açılışta güncellenir (gerekirse alana sağ tıklayıp "Alanı Güncelleştir").')];
 
@@ -129,11 +132,11 @@ kids.push(h1('1. YÖNETİCİ ÖZETİ'),
 // ---- 2 Proje bilgileri
 kids.push(h1('2. PROJE BİLGİLERİ'),
  h2('2.1 Genel bilgiler'),
- kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Proje konumu (il / ilçe / ada-parsel)',ph()],[YY?'Ölçek':'Bina tipolojisi',tip],[YY?'Kategori':'Bina kategorisi',dur],['Toplam yapı inşaat alanı (m²)',ph()],['Kat adedi / kullanıcı kapasitesi',ph()],['Yapı ruhsat tarihi / no',ph()],['Mimari proje müellifi',ph()],['Yüklenici / Şantiye şefi',ph()],['Hedef sertifika derecesi',G[g]]]),
+ kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Proje konumu (il / ilçe / ada-parsel)',val(K.konum)],[YY?'Ölçek':'Bina tipolojisi',tip],[YY?'Kategori':'Bina kategorisi',dur],['Toplam yapı inşaat alanı (m²)',val(K.alan)],['Kat adedi / kullanıcı kapasitesi',val(K.kat)],['Yapı ruhsat tarihi / no',val(K.ruhsat)],['Mimari proje müellifi',val(K.mimar)],['Yüklenici / Şantiye şefi',val(K.yuklenici)],['Hedef sertifika derecesi',G[g]]]),
  h2('2.2 Sertifikasyon paydaşları'),
- tbl([2400,2400,2400,2438],['Rol','Kurum / Kişi','Belge / Yetki no','İletişim'],[['Yeşil Sertifika Uzmanı (YESU)',info.yesu||ph(),ph(),ph()],['Yapı sahibi / Yetkilisi',info.kurum||ph(),ph(),ph()],['Değerlendirme Kuruluşu','Türkiye Çevre Ajansı','—','—'],['Değerlendirme Uzmanları (YESDU)',ph(),ph(),ph()],['Proje müellifleri / Danışmanlar',ph(),ph(),ph()]]),
+ tbl([2400,2400,2400,2438],['Rol','Kurum / Kişi','Belge / Yetki no','İletişim'],[['Yeşil Sertifika Uzmanı (YESU)',val(info.yesu),val(RP.pay.yesu.no),val(RP.pay.yesu.iletisim)],['Yapı sahibi / Yetkilisi',val(info.kurum),val(RP.pay.sahip.no),val(RP.pay.sahip.iletisim)],['Değerlendirme Kuruluşu','Türkiye Çevre Ajansı','—','—'],['Değerlendirme Uzmanları (YESDU)',val(RP.pay.yesdu.kisi),val(RP.pay.yesdu.no),val(RP.pay.yesdu.iletisim)],['Proje müellifleri / Danışmanlar',val(RP.pay.muellif.kisi),val(RP.pay.muellif.no),val(RP.pay.muellif.iletisim)]]),
  h2('2.3 Proje ekibi ve sorumluluk çizelgesi'),note(YY?'Proje ekibi, görev ve sorumlulukları aşağıya işlenir.':'BBT 01 K1 kriteri kapsamında; mimar, inşaat, makine, elektrik-elektronik, çevre mühendisleri ve proje yöneticisinden oluşan ekip, görev ve sorumlulukları ile birlikte aşağıya işlenir.'),
- tbl([2800,2600,2400,1838],['Ad Soyad','Disiplin / Unvan','Görev ve sorumluluk','Oda sicil no'],[...Array(4)].map(()=>[ph('…'),ph('…'),ph('…'),ph('…')])));
+ tbl([2800,2600,2400,1838],['Ad Soyad','Disiplin / Unvan','Görev ve sorumluluk','Oda sicil no'],RP.ekip.length?RP.ekip.map(r=>[val(r.ad,'…'),val(r.disiplin,'…'),val(r.gorev,'…'),val(r.sicil,'…')]):[...Array(4)].map(()=>[ph('…'),ph('…'),ph('…'),ph('…')])));
 
 // ---- 3 Dayanak
 kids.push(h1('3. DAYANAK, KAPSAM VE YÖNTEM'),
@@ -180,7 +183,8 @@ kids.push(h1('5. DEĞERLENDİRME SONUÇLARI'),
  note('Zorunlu kriterlerden biri dahi sağlanmazsa hiçbir sertifika derecesi alınamaz.'+(D.crit.some(c=>c.zg&&isZ(c,S))?' Derece belirtilen zorunlu kriterler yalnızca o derece ve üstü için aranır.':'')),
  tbl([1300,4300,2400,1638],['Kriter','Açıklama','Aşama','Durum'],zrows,{size:18}),
  h2('5.4 Güçlü yönler ve geliştirme alanları'),
- tbl([4819,4819],['Güçlü yönler','Geliştirme alanları'],[[ph('[…]'),ph('[…]')],[ph('[…]'),ph('[…]')],[ph('[…]'),ph('[…]')]]));
+ (()=>{const a=lines(RP.guclu),b=lines(RP.gelisim),n=Math.max(a.length,b.length,a.length||b.length?1:3);
+  return tbl([4819,4819],['Güçlü yönler','Geliştirme alanları'],[...Array(n)].map((_,i)=>[a[i]?'• '+a[i]:(a.length||i&&b.length?'':ph('[…]')),b[i]?'• '+b[i]:(b.length||i&&a.length?'':ph('[…]'))]))})());
 
 // ---- 6 Süreç
 const srow=(i,kap,sor)=>[{t:STG[i],bold:true,color:NAVY},kap,sor,String((cnt[i]||[0])[0]),filled?`${(cnt[i]||[0,0])[1]} / ${(cnt[i]||[0])[0]}`:ph('…')];
@@ -199,7 +203,7 @@ kids.push(h1('6. SÜREÇ VE AŞAMA PLANI'),
   [{t:'Veri giriş / kontrol',bold:true,color:NAVY},'YESU, modül kriterlerine ait kanıt belgelerini YeS-TR\'ye yükler; modüller ilgili YESDU\'lara havale edilir; YESDU kanıtları inceleyip puanlar; taslak sertifika YESU ile paylaşılır, itiraz varsa süreç tekrarlanır.'],
   [{t:'Sertifika düzenleme',bold:true,color:NAVY},'Sertifika onaylanır, YESDU imzaları alınır, Çevre Ajansı imzalayarak yapı sahibine gönderir; sertifika YeS-TR veri tabanına otomatik kaydedilir.']]),
  h2('6.3 Başvuru takip çizelgesi'),
- tbl([3600,2000,2000,2038],['Adım','Planlanan tarih','Gerçekleşen','Not'],['YESU sözleşmesi','Başvuru ücreti ödemesi','Başvuru dosyası yükleme','Değerlendirme / düzeltme','Taslak sertifika incelemesi','Sertifika teslimi'].map(a=>[a,ph('…'),ph('…'),ph('…')])));
+ tbl([3600,2000,2000,2038],['Adım','Planlanan tarih','Gerçekleşen','Not'],TAKIP_ADIMLAR.map((a,i)=>{const t=RP.takip[i];return [a,hv(t.plan)?trd(t.plan):ph('…'),hv(t.gercek)?trd(t.gercek):ph('…'),val(t.not,'…')]})));
 
 // ---- 7 Kriter kartları
 kids.push(h1('7. KRİTER BAZLI DETAYLI DEĞERLENDİRME'),
@@ -226,9 +230,11 @@ idx.forEach(i=>{kids.push(h3(`${D.mods[i]} · ${MN[D.mods[i]]}`),tbl([1700,3200,
 kids.push(h1('9. SONUÇ VE EYLEM PLANI'),
  h2('9.1 Sonuç'),para(filled?`${R.grade<0?'Proje, mevcut durumda hiçbir derece koşulunu sağlamamaktadır.':'Proje, mevcut durumda '+G[R.grade]+' derecesi için gereken koşulları sağlamaktadır.'} Hedef derece ${G[g]} olup ${R.ok[g]?'tüm koşullar bakımından uygun görünmektedir.':'ulaşılması için Bölüm 5.2\'deki eksiklerin giderilmesi gerekmektedir.'}`:'[Değerlendirme tamamlandığında sonuç paragrafı yazılır.]',filled?{}:{it:true,color:MUT}),
  h2('9.2 Eylem planı'),
- tbl([1100,3300,1700,1700,1838],['No','Eylem','Sorumlu','Termin','Kriter'],[...Array(8)].map((_,i)=>{const s=SG.items[i];return [String(i+1),s?`${s.c.n.slice(0,80)} (${s.why}${s.gain?`, +${f2(s.gain)} kredi`:''})`:ph('…'),ph('…'),ph('…'),s?s.c.c:ph('…')]})),
+ tbl([1100,3300,1700,1700,1838],['No','Eylem','Sorumlu','Termin','Kriter'],RP.eylem.length
+  ?RP.eylem.map((r,i)=>[String(i+1),val(r.eylem,'…'),val(r.sorumlu,'…'),hv(r.termin)?trd(r.termin):ph('…'),val(r.kriter,'…')])
+  :[...Array(8)].map((_,i)=>{const s=SG.items[i];return [String(i+1),s?`${s.c.n.slice(0,80)} (${s.why}${s.gain?`, +${f2(s.gain)} kredi`:''})`:ph('…'),ph('…'),ph('…'),s?s.c.c:ph('…')]})),
  h2('9.3 Onay'),
- tbl([3212,3213,3213],['Hazırlayan (YESU)','Kontrol eden','Onaylayan (Yapı sahibi / Yetkili)'],[[para('Ad Soyad: …',{size:18}),para('Ad Soyad: …',{size:18}),para('Ad Soyad: …',{size:18})],[para('Tarih: …',{size:18}),para('Tarih: …',{size:18}),para('Tarih: …',{size:18})],[{t:'İmza',it:true,color:MUT},{t:'İmza',it:true,color:MUT},{t:'İmza',it:true,color:MUT}]],{zebra:false}));
+ tbl([3212,3213,3213],['Hazırlayan (YESU)','Kontrol eden','Onaylayan (Yapı sahibi / Yetkili)'],[['hazirlayan','kontrol','onaylayan'].map(k=>para('Ad Soyad: '+(hv(RP.onay[k])?RP.onay[k].trim():'…'),{size:18})),['hazirlayan','kontrol','onaylayan'].map(k=>para('Tarih: '+(hv(RP.onay[k+'T'])?trd(RP.onay[k+'T']):'…'),{size:18})),[{t:'İmza',it:true,color:MUT},{t:'İmza',it:true,color:MUT},{t:'İmza',it:true,color:MUT}]],{zebra:false}));
 
 // ---- 10 Ekler
 kids.push(h1('10. EKLER · KANIT BELGELERİ'),para('Kanıt belgeleri modül sırasıyla ve ek numaralarıyla aşağıda sunulmuştur. Görseller ve PDF belgelerinin sayfaları rapora eklenmiştir; rapora gömülemeyen belge türleri (Word, Excel, DWG vb.) ile tüm orijinal dosyalar, rapor ile birlikte teslim edilen ek paketinde (.zip) aynı ek numaralarıyla yer alır.'));
