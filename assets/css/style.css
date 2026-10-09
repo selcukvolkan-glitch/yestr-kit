@@ -35,7 +35,7 @@ body { margin: 0; background: var(--bg); color: var(--tx); font: 15px/1.4 system
 .intro h2 { font-size: 20px; margin: 0 0 4px; color: var(--pr); }
 .intro p { margin: 0; color: var(--mu); max-width: 760px; }
 .start { display: grid; grid-template-columns: minmax(0, 1fr) var(--side); gap: 14px; align-items: start; }
-@media (max-width: 1000px) { .start { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .start { grid-template-columns: minmax(0, 1fr); } }
 .start h3 { margin: 0 0 10px; font-size: 15px; color: var(--pr); }
 .start .grid { gap: 12px; }
 .start input, .start select { padding: 9px; }
@@ -67,7 +67,7 @@ body { margin: 0; background: var(--bg); color: var(--tx); font: 15px/1.4 system
 #mini { display: none; }
 
 @media (max-width: 1000px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
   .side { position: static; order: -1; }
   #mini {
     display: flex; position: sticky; top: 0; z-index: 5; align-items: center; gap: 10px;
@@ -95,9 +95,9 @@ body { margin: 0; background: var(--bg); color: var(--tx); font: 15px/1.4 system
 .pb i { display: block; height: 100%; background: var(--pr); }
 
 /* Form */
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .grid .w2 { grid-column: span 2; }
-@media (max-width: 520px) { .grid { grid-template-columns: 1fr; } .grid .w2 { grid-column: auto; } }
+@media (max-width: 520px) { .grid { grid-template-columns: minmax(0, 1fr); } .grid .w2 { grid-column: auto; } }
 label.f { font-size: 12px; color: var(--mu); display: block; }
 input, select, button, textarea { font: inherit; color: var(--tx); background: var(--cd); border: 1px solid var(--bd); border-radius: 7px; padding: 7px; width: 100%; }
 button { width: auto; cursor: pointer; background: var(--pr); color: #fff; border: 0; padding: 7px 11px; }
@@ -181,6 +181,8 @@ details.tg.done:not([open]) > summary:hover { filter: brightness(.97); }
 .fi a { flex: 1; min-width: 0; color: var(--tx); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fi a:hover { text-decoration: underline; }
 .fi a small { color: var(--pr); font-weight: 600; margin-right: 6px; }
+/* Grid/flex çocukları içerik genişliğine göre büyümesin (uzun dosya adları) */
+main, .side, .mp, details.tg, .r, .fls { min-width: 0; }
 .fi .sz { color: var(--mu); flex: none; }
 .fi b { flex: none; color: var(--bad); cursor: pointer; padding: 0 4px; }
 .note.err { color: var(--bad); }

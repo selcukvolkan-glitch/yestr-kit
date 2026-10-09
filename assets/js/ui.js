@@ -114,7 +114,7 @@ async function drawFiles(id) {
     const img = r.type.startsWith('image/'), view = img || r.type === 'application/pdf';
     h += `<div class="fi">
       ${img ? `<img src="${u}" alt="">` : `<span class="ic">${fileExt(r.name)}</span>`}
-      <a href="${u}" ${view ? 'target="_blank" rel="noopener"' : `download="${esc(r.name)}"`} title="${view ? 'Aç' : 'İndir'}"><small>${evidenceNo(c, i)}</small>${esc(r.name)}</a>
+      <a href="${u}" ${view ? 'target="_blank" rel="noopener"' : `download="${esc(r.name)}"`} title="${esc(r.name)} · ${view ? 'Aç' : 'İndir'}"><small>${evidenceNo(c, i)}</small>${esc(r.name)}</a>
       <small class="sz">${fmtSize(r.size)}</small>
       <b data-x="${k}" title="Kaldır">✕</b>
     </div>`;
