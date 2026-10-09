@@ -208,7 +208,7 @@ function init() {
   $('#ols').value = S.olcek || 'B';
   $('#tipd').hidden = yer;
   $('#fld').hidden = yer;
-  $('#hsub').textContent = `${yer ? 'Yerleşme' : 'Bina'} ölçeği · Skorlama ve kanıt takibi · v1.2 esaslı ön değerlendirme aracıdır, bağlayıcı değildir`;
+  $('#hsub').textContent = `${yer ? 'Yerleşme' : 'Bina'} ölçeği · Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir`;
   $('#tip').value = S.tip; $('#dur').value = S.durum; $('#hdf').value = S.hedef;
   document.querySelectorAll('[data-i]').forEach(e => e.value = S.info[e.dataset.i] || '');
   drawFilter(); renderMods(); update();
@@ -376,7 +376,7 @@ function route() {
   $('#start').hidden = work;
   $('#work').hidden = !work;
   $('#home').hidden = !work;
-  if (work) { init(); } else { drawStart(); $('#hsub').textContent = 'Skorlama ve kanıt takibi · v1.2 esaslı ön değerlendirme aracıdır, bağlayıcı değildir'; }
+  if (work) { init(); } else { drawStart(); $('#hsub').textContent = 'Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir'; }
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);

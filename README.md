@@ -19,7 +19,7 @@ Derleme adımı yoktur; düz HTML/CSS/JS'dir. `index.html` doğrudan tarayıcıd
 |---|---|
 | `index.html` | Açılış ve değerlendirme sayfaları |
 | `assets/css/style.css` | Stil |
-| `assets/js/data.js` | Kriter, ağırlık ve eşik verisi (v1.2 demo esaslı) |
+| `assets/js/data.js` | Kriter, ağırlık ve eşik verisi (YeS-TR Puan Hesaplama v1.3 / 2025 esaslı) |
 | `assets/js/engine.js` | Skor motoru (`calc`) ve öneri motoru (`suggest`) |
 | `assets/js/storage.js` | localStorage (projeler) ve IndexedDB (kanıt dosyaları) |
 | `assets/js/ui.js` | Arayüz, sayfa geçişleri ve olaylar |
