@@ -21,7 +21,10 @@ function repOf(p) {
 }
 
 // f: { kriterId: [dosyaAnahtarı, ...] }  ·  img: eski sürümden kalan fotoğraflar (açılışta f'ye taşınır)
-const blank = () => ({ info: {}, olcek: 'B', tip: 1, durum: 'Y', hedef: 2, a: 0, v: {}, z: {}, n: {}, e: {}, f: {}, img: {}, rep: repBlank() });
+// t: { kriterId: [{ sütunAnahtarı: metin }] } — kritere özel tablolar (CRIT_TABLES)
+// org: { kriterId: [{ id, t: görev/unvan, a: ad soyad, p: üst birim id | null }] } — organizasyon şemaları
+// g: { kriterId: { gereklilikNo: true } } — kılavuzu tanımlı kriterlerde işaretlenen gereklilikler (guide.js)
+const blank = () => ({ info: {}, olcek: 'B', tip: 1, durum: 'Y', hedef: 2, a: 0, v: {}, z: {}, n: {}, e: {}, f: {}, img: {}, t: {}, org: {}, g: {}, gv: {}, rep: repBlank() });
 
 let S = blank();                    // aktif proje
 let P = { cur: 'p1', list: {} };    // tüm projeler
@@ -72,9 +75,9 @@ const tx = async (mode, fn, store = 'files') => {
 const today = () => new Date().toISOString().slice(0, 10);
 const MAX_FILE = 50 * 1024 * 1024;
 
-// Kanıt dosyası ekler. Büyük fotoğraflar okunur kalacak şekilde 2000 px JPEG'e küçültülür,
-// diğer dosyalar (PDF, Word, Excel, DWG...) olduğu gibi saklanır.
-async function addFile(id, file) {
+// Dosyayı IndexedDB'ye yazar ve { key, name } döndürür. Büyük fotoğraflar okunur kalacak şekilde
+// 2000 px JPEG'e küçültülür, diğer dosyalar (PDF, Word, Excel, DWG...) olduğu gibi saklanır.
+async function storeFile(id, file) {
   if (file.size > MAX_FILE) throw new Error(`${file.name}: 50 MB sınırını aşıyor`);
   let blob = file, type = file.type || 'application/octet-stream', name = file.name, w, h;
   if (/^image\/(jpeg|png|webp|bmp|gif)$/.test(type)) {
@@ -97,8 +100,26 @@ async function addFile(id, file) {
   }
   const key = `${S.id}|${id}|${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
   await tx('readwrite', s => s.put({ name, type, size: blob.size, date: today(), blob, w, h }, key));
+  return { key, name };
+}
+
+// Kritere kanıt dosyası ekler
+async function addFile(id, file) {
+  const { key } = await storeFile(id, file);
   (S.f[id] = S.f[id] || []).push(key);
   save();
+}
+
+// Kritere özel tablolardaki dosya sütunlarının anahtarları: [{ id, row, key }]
+function tableFileKeys(p) {
+  const out = [];
+  for (const id in p.t || {}) {
+    const T = typeof CRIT_TABLES !== 'undefined' && CRIT_TABLES[id];
+    if (!T) continue;
+    const fileCols = T.cols.filter(c => c[2] === 'file').map(c => c[0]);
+    (p.t[id] || []).forEach((r, row) => fileCols.forEach(k => (r[k] || []).forEach(f => out.push({ id, row, key: f.key }))));
+  }
+  return out;
 }
 
 const getFile = key => tx('readonly', s => s.get(key));
@@ -110,17 +131,23 @@ async function removeFile(id, key) {
   try { await tx('readwrite', s => s.delete(key)); } catch (e) {}
 }
 
-// { kriterId: [{key, name, type, size, date, w, h, blob}] }
+// { kriterId: [{key, name, type, size, date, w, h, blob}] } — rapor ve zip için.
+// Kanıt dosyalarının ardından kritere özel tablolardaki dosyalar (ör. yetki belgeleri) gelir;
+// böylece aynı ek numaralandırmasına girer, Ekler bölümüne ve zip paketine eklenir.
 async function loadFiles(S) {
   const o = {};
   for (const id in S.f || {}) for (const key of S.f[id]) {
     try { const r = await getFile(key); if (r) (o[id] = o[id] || []).push(Object.assign({ key }, r)); } catch (e) {}
+  }
+  for (const { id, row, key } of tableFileKeys(S)) {
+    try { const r = await getFile(key); if (r) (o[id] = o[id] || []).push(Object.assign({ key, tableRow: row }, r)); } catch (e) {}
   }
   return o;
 }
 
 async function delAllFiles(S) {
   for (const id in S.f || {}) for (const k of S.f[id]) try { await tx('readwrite', s => s.delete(k)); } catch (e) {}
+  for (const { key } of tableFileKeys(S)) try { await tx('readwrite', s => s.delete(key)); } catch (e) {}
   for (const id in S.img || {}) for (const k of S.img[id]) try { await tx('readwrite', s => s.delete(k), 'img'); } catch (e) {}
 }
 

@@ -26,8 +26,53 @@ function moduleName(i) {
   return themes.join(' · ');
 }
 
+// Modül renkleri (kılavuzdaki başlık vurguları): light = açık ton (zeminler), dark = koyu ton (beyaz yazılı alanlar).
+// Tanımı olmayan modüller sitenin varsayılan laciverdini kullanır.
+// Pastel palet (deneme). Koyu tonlar beyaz yazıyla ≥ 4,0 kontrast.
+// Önceki (kılavuzdaki) palet: BBT #B8CCE4/#365F91 · İOK #ECC3F0/#8E3E99 · YMD #FCD5B4/#974806 ·
+// EKV #E5B8B7/#943634 · SAY #93CDDD/#215968 · İNO #BFBFBF/#595959
+const MOD_COLORS = {
+  'BBT': { light: '#D5E1EF', dark: '#5A7DA6' },
+  'İOK': { light: '#F3DDF5', dark: '#9A6AA4' },
+  'YMD': { light: '#FDE5D1', dark: '#A26A43' },
+  'EKV': { light: '#F1D8D7', dark: '#A8605E' },
+  'SAY': { light: '#C3E3EB', dark: '#4D8796' },
+  'İNO': { light: '#DEDEDE', dark: '#7A7A7A' }
+};
+const modStyle = m => MOD_COLORS[m] ? ` style="--mc:${MOD_COLORS[m].dark};--ml:${MOD_COLORS[m].light}"` : '';
+const modClass = m => MOD_COLORS[m] ? ' mc' : '';
+
 // Raporda modüllerin sırası (binada YMD, İOK'tan önce gelir).
 function reportModuleOrder() { return D.scale === 'Y' ? [0, 1, 2, 3, 4, 5] : [0, 2, 1, 3, 4, 5]; }
+
+// Kritere özel, kullanıcının doldurduğu tablolar (kriter satırında ve rapordaki kriter kartının altında).
+// cols: [anahtar, başlık, tür] · tür 'text' | 'date' | 'time' | 'num' | 'yn' (E/H) | 'list' = her satır bir madde (raporda • ile),
+// 'file' = dosya yükleme (kanıt dosyalarıyla aynı ek numaralandırmasına girer)
+// when: (isteğe bağlı) tablonun gösterileceği projeler
+const CRIT_TABLES = {
+  'BBT 01 K1': { title: 'Görev ve sorumluluk çizelgesi', rows: 1, cols: [
+    ['gorev', 'Görev', 'text'], ['uzman', 'Uzman Adı Soyadı', 'text'], ['sor', 'Sorumluluk', 'list'], ['belge', 'Yetki Belgesi', 'file']] },
+  'BBT 01 K3': { title: 'Proje İhtiyaç Programı (Tablo 2.1.4)', rows: 1, when: p => p.durum === 'Y', cols: [
+    ['islev', 'İşlev', 'text'], ['miktar', 'Miktar', 'text'], ['birim', 'Birim (adet, m², m, …)', 'text']] },
+  'BBT 02 K1': { title: 'Toplantı Tutanakları (Tablo 2.1.6)', rows: 1, when: p => p.durum === 'Y', cols: [
+    ['tarih', 'Tarih', 'date'], ['saat', 'Saat', 'time'], ['yer', 'Yer', 'text'],
+    ['katilanlar', 'Katılanlar', 'list'], ['gundem', 'Gündem', 'list'], ['tutanak', 'Tutanak', 'file']] }
+  // Not: tablolar 'totals' ({ flag, yes, no, labels }) ve 'note' alanlarıyla otomatik toplam satırı ve dipnot da taşıyabilir.
+};
+// Toplam satırları: [[etiket, [sütun toplamları]], ...] — sayı sütunları için
+function tableTotals(T, rows) {
+  if (!T.totals) return [];
+  const nums = T.cols.filter(c => c[2] === 'num').map(c => c[0]), { flag, yes, no, labels } = T.totals;
+  const sum = f => nums.map(k => rows.filter(f).reduce((a, r) => a + (parseFloat(String(r[k] || '').replace(',', '.')) || 0), 0));
+  return [[labels[0], sum(r => r[flag] === yes)], [labels[1], sum(r => r[flag] === no)], [labels[2], sum(() => true)]];
+}
+const tableOn = (id, p) => !!CRIT_TABLES[id] && (!CRIT_TABLES[id].when || CRIT_TABLES[id].when(p));
+
+// Organizasyon şeması bulunan kriterler ve hangi projelerde gösterileceği (orgchart.js)
+const ORG_CRITS = {
+  'BBT 01 K1': p => p.durum === 'Y' // yalnızca yeni binalarda
+};
+const hasOrg = (id, p) => !!ORG_CRITS[id] && ORG_CRITS[id](p);
 
 // Dosya adı için güvenli metin
 const safeName = s => (s || 'Proje').replace(/[^\wÇĞİÖŞÜçğıöşü.-]+/g, '_').slice(0, 60);
@@ -40,12 +85,19 @@ function critValue(c, S) { return c.v[S.durum][S.tip]; }
 
 function isMandatory(c, S) {
   if (critValue(c, S) === 'Z' || c.zf) return true;
-  // Yeni binalarda bina tipine bağlı zorunluluklar (v1.2 tablosu)
-  if (S.durum === 'Y') {
-    if (c.c === 'İOK 03 K1') return S.tip == 2 || S.tip == 4;
-    if (c.c === 'İOK 04 K1') return S.tip != 0;
+  // Bina tipine bağlı, kredisi de olan zorunluluklar (kılavuz: yeni ve mevcut binalarda)
+  if (D.scale === 'B') {
+    if (c.c === 'İOK 03 K1') return S.tip == 2 || S.tip == 4; // eğitim ve sağlık
+    if (c.c === 'İOK 04 K1') return S.tip != 0;               // konut dışı
   }
   return false;
+}
+
+// Zorunlu şart sağlandı mı? Kılavuzu tanımlı kriterde gereklilik işaretlerinden (guideMet),
+// diğerlerinde "Şart sağlandı" kutusundan. (Eski kayıt: yalnızca S.z işaretliyse onu kabul et.)
+function zMet(c, S) {
+  if (typeof CRIT_GUIDE !== 'undefined' && CRIT_GUIDE[c.id]) return guideMet(c, S) || (!!S.z[c.id] && !(S.g && S.g[c.id]));
+  return !!S.z[c.id];
 }
 
 // Modülün azami kredisine giren değer (nc kriterlerinde de sayılır).
@@ -57,8 +109,12 @@ function earnableCredit(c, S) { return c.nc ? 0 : maxCredit(c, S); }
 // Zorunluluğun arandığı en düşük derece (zg yoksa tüm dereceler).
 const mandatoryFrom = c => c.zg || 0;
 
-// Girilen krediyi 0..kazanılabilir aralığına sıkıştırır.
-function givenCredit(c, S) { return Math.min(Math.max(+S.v[c.id] || 0, 0), earnableCredit(c, S)); }
+// Alınan kredi. Kılavuzu tanımlı kriterlerde (guide.js) gereklilik işaretlerinden hesaplanır;
+// diğerlerinde girilen kredi 0..kazanılabilir aralığına sıkıştırılır.
+function givenCredit(c, S) {
+  if (typeof CRIT_GUIDE !== 'undefined' && CRIT_GUIDE[c.id]) return guideCredit(c, S, earnableCredit(c, S));
+  return Math.min(Math.max(+S.v[c.id] || 0, 0), earnableCredit(c, S));
+}
 
 function calc(S) {
   const R = { mods: [], total: 0 };
@@ -71,7 +127,7 @@ function calc(S) {
       const x = maxCredit(c, S), u = givenCredit(c, S);
       // Seçenekli kriterlerde (c.g) yalnızca en yüksek seçenek sayılır
       if (c.g) { optVal.push(u); optMax.push(x); } else { raw += u; max += x; }
-      if (isMandatory(c, S) && !S.z[c.id]) missing.push(c);
+      if (isMandatory(c, S) && !zMet(c, S)) missing.push(c);
     });
     if (optVal.length) { raw += Math.max(...optVal); max += Math.max(...optMax); }
 
@@ -98,7 +154,7 @@ function calc(S) {
 // önce eksik zorunlular, sonra modül şartları, en son toplam kredi açığı.
 function suggest(S, R, g) {
   const out = [], done = {};
-  D.crit.forEach(c => { if (isMandatory(c, S) && !S.z[c.id] && mandatoryFrom(c) <= g) out.push({ c, why: 'Zorunlu kriter', gain: 0 }); });
+  D.crit.forEach(c => { if (isMandatory(c, S) && !zMet(c, S) && mandatoryFrom(c) <= g) out.push({ c, why: 'Zorunlu kriter', gain: 0 }); });
 
   const cand = D.crit
     .filter(c => c.m < 6 && earnableCredit(c, S) > givenCredit(c, S) && !(c.g && c.id.endsWith('-2')))

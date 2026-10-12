@@ -55,7 +55,7 @@ const MA={'BBT':'Sürdürülebilir yeşil binaların; tüm sistem ve sürecin pr
 'İNO':'Mevcut sertifika gereklilikleri dışında kalan yenilikçi ve iyileştirici uygulamaların ile kullanıcıların yaşam kalitesini artıran çözümlerin teşvik edilmesi. Modül puanı toplam ağırlıklı krediye etki etmez.'};
 const STG=['—','1. Hazırlık ve Planlama','2. Proje (Bütünleşik Tasarım)','3. Yapıma Yönelik İhale','4. İnşaat Uygulamaları'];
 const S=Object.assign({info:{},tip:2,durum:'Y',hedef:2,v:{},z:{},n:{},e:{}},S0);
-const filled=Object.keys(S.v).length>0||Object.keys(S.z).length>0;
+const filled=Object.keys(S.v).length>0||Object.keys(S.z).length>0||Object.keys(S.g||{}).length>0||Object.keys(S.gv||{}).length>0;
 const R=calc(S),g=S.hedef,info=S.info||{},SG=filled?suggest(S,R,g):{items:[]};
 const CH=await drawCharts(R,g,filled);
 const NAVY='00527A',BLUE='D74921',LIGHT='E1EDF4',GREY='F2F5FA',GRN='1B8A4B',RED='C0392B',MUT='6B7788';
@@ -86,8 +86,9 @@ const idx=reportModuleOrder();
 const crit=m=>D.crit.filter(c=>c.m===m);
 const eAd=c=>'Ek-'+c.id.replace(/ /g,'');
 const zFrom=c=>c.zg?` (${G[c.zg]} ve üstü)`:'';
-const cap=c=>isZ(c,S)?(earnableCredit(c,S)?'Zorunlu'+zFrom(c)+' + '+n2(mx(c,S)):(mx(c,S)?`Zorunlu${zFrom(c)} (azami ${n2(mx(c,S))}, kazanılamaz)`:'Zorunlu'+zFrom(c))):n2(mx(c,S));
-const alinan=c=>{const id=c.id;if(!filled)return ph('…');if(isZ(c,S)&&!earnableCredit(c,S))return S.z[id]?'Sağlandı':'Sağlanmadı';return n2(givenCredit(c,S))+(isZ(c,S)?(S.z[id]?' · şart ✓':' · şart ✗'):'')};
+const naGuide=c=>typeof CRIT_GUIDE!=='undefined'&&CRIT_GUIDE[c.id]&&!guideReqs(c,S).length; // kılavuza göre bu projede uygulanmaz
+const cap=c=>naGuide(c)?'Uygulanmaz':isZ(c,S)?(earnableCredit(c,S)?'Zorunlu'+zFrom(c)+' + '+n2(mx(c,S)):(mx(c,S)?`Zorunlu${zFrom(c)} (azami ${n2(mx(c,S))}, kazanılamaz)`:'Zorunlu'+zFrom(c))):n2(mx(c,S));
+const alinan=c=>{const id=c.id;if(naGuide(c))return '—';if(!filled)return ph('…');if(isZ(c,S)&&!earnableCredit(c,S))return zMet(c,S)?'Sağlandı':'Sağlanmadı';return n2(givenCredit(c,S))+(isZ(c,S)?(zMet(c,S)?' · şart ✓':' · şart ✗'):'')};
 const ek=c=>S.e[c.id]||(filled?'Yok':'…');
 const kids=[];
 
@@ -101,9 +102,53 @@ for(const c of D.crit)for(const f of FL(c)){
  if(f.type.startsWith('image/')){say(`Görsel işleniyor: ${f.name}`);const im=await imageForDocx(f);REN[f.key]=im?{kind:'img',pages:[im]}:{kind:'none'}}
  else if(f.type==='application/pdf'&&window.pdfjsLib){const r=await pdfPages(f,MAX_PDF_PAGES,say);REN[f.key]=r?{kind:'pdf',pages:r.pages,total:r.total}:{kind:'none'}}
  else REN[f.key]={kind:'none'}}
+// Organizasyon şemaları (boşsa şablon şema)
+const ORGIMG={};
+if(typeof orgPNG==='function')for(const id of Object.keys(ORG_CRITS))if(hasOrg(id,S)&&D.crit.some(c=>c.id===id)){const nodes=orgNodes(S,id);ORGIMG[id]=await orgPNG(nodes.length?nodes:ORG_TEMPLATE)}
 say('Rapor oluşturuluyor…');
 const presented=f=>{const r=REN[f.key];return r.kind==='img'?'Raporda (görsel)':r.kind==='pdf'?`Raporda (${r.pages.length}${r.total>r.pages.length?' / '+r.total:''} sayfa)`:'Ek pakette'};
 const imgPara=im=>{const k=Math.min(1,620/im.w,860/im.h);return new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:60,after:60},children:[new ImageRun({type:im.type,data:im.data,transformation:{width:Math.round(im.w*k),height:Math.round(im.h*k)}})]})};
+// Kritere özel tablo (CRIT_TABLES): dolu satırlar; hiç doldurulmamışsa şablon satırları (…)
+const critTableBlock=c=>{const T=CRIT_TABLES[c.id];if(!T||!tableOn(c.id,S))return [];
+ const filledRows=((S.t||{})[c.id]||[]).filter(r=>T.cols.some(([k])=>hv(r[k])));
+ const ws=T.cols.length===2?[3200,W-3200]:T.cols.length===3?[4638,2500,2500]:T.cols.length===4?[2000,2000,3238,2400]:T.cols.length===6?[1300,900,1400,2000,2338,1700]:T.cols.length===7?[2438,1400,1160,1160,1160,1160,1160]:T.cols.map(()=>Math.floor(W/T.cols.length));
+ // Dosya sütunu: belgenin Ekler'deki ek numarası ve adı (dosyalar loadFiles ile FILES'a katılır)
+ const fileCell=arr=>{const xs=(arr||[]).map(f=>{const i=FL(c).findIndex(z=>z.key===f.key);return i<0?f.name:`${evidenceNo(c,i)} · ${f.name}`});
+  return xs.length?xs.map(x=>para(x,{size:17,a:20})):[para('…',{size:18,a:20,it:true,color:MUT})]};
+ const cellOf=(r,[k,,type])=>type==='list'
+  ?(lines(r[k]).length?lines(r[k]).map(x=>para('• '+x,{size:18,a:20})):[para('• …',{size:18,a:20,color:MUT})])
+  :type==='file'?fileCell(r[k])
+  :type==='date'?(hv(r[k])?trd(r[k]):ph('…'))
+  :(hv(r[k])?String(r[k]).trim():ph('…'));
+ const rows=(filledRows.length?filledRows:[...Array(T.rows)].map(()=>({}))).map(r=>T.cols.map(col=>cellOf(r,col)));
+ // Otomatik toplam satırları (ör. Tablo 2.1.9): etiket ilk sütunda, sayı sütunlarının altında toplamlar
+ const tots=tableTotals(T,filledRows).map(([lab,sums])=>{let j=0;return T.cols.map((col,i)=>i===0?{t:lab,bold:true,color:NAVY}:col[2]==='num'?(filledRows.length?n2(sums[j++]):ph('…')):'')});
+ return [para(`${T.title} · ${c.c}`,{size:18,bold:true,color:NAVY,b:120,a:60,kn:true}),tbl(ws,T.cols.map(x=>x[1]),rows.concat(tots),{size:18}),
+  ...(T.note?[para(T.note,{size:16,it:true,color:MUT,a:60})]:[])]};
+// Kılavuzu tanımlı kriter (guide.js): amaç, gereklilikler (durumlarıyla), kredi kuralı, yöntem, belgeler
+const guideParas=c=>{const Gd=CRIT_GUIDE[c.id],hd=t=>para(t,{size:17,bold:true,color:NAVY,a:20,b:60});
+ const st=g=>!gApplies(g,S)?{t:'— uygulanmaz',color:MUT}:!filled?{t:'…',color:MUT}:guideChecked(c,S,g.no)?{t:'✓ sağlandı',color:GRN}:{t:'✗ sağlanmadı',color:RED};
+ // Metin ya da metin dizisi: '• ' ile başlayan öğeler girintili madde olarak
+ const txt=v=>(Array.isArray(v)?v:[v]).map(x=>/^•\s*/.test(x)?para('• '+x.replace(/^•\s*/,''),{size:18,a:20,bul:false}):para(x,{size:18,a:20}));
+ return [hd('Amaç'),...txt(Gd.amac),
+  hd(`Gereklilikler (${DURUM_AD[S.durum]} bina)`),
+  ...(Gd.not?[para(Gd.not,{size:17,a:20,color:MUT})]:[]),
+  ...Gd.gerek.filter(g=>gTip(g,S)).map(g=>{const s=g.head?{t:'',color:MUT}:st(g);
+   return new Paragraph({indent:g.sub?{left:400}:undefined,spacing:{after:20,line:288},children:[run(`(${g.no}) `,{bold:true,size:18}),run(g.text,{size:18,color:gApplies(g,S)?undefined:MUT}),run('  '+s.t,{size:17,bold:true,color:s.color})]})}),
+  // 'hesap' kuralı: girilen değerler ve hesap sonucu
+  ...(Gd.kural==='hesap'?(()=>{const v=gvOf(c,S),fs=guideInputs(c,S).filter(f=>v[f.k]!==undefined&&v[f.k]!=='');
+   const val=f=>f.t==='sel'?(f.opts.find(o=>o[0]===v[f.k])||['',v[f.k]])[1]:v[f.k]+(f.birim?' '+f.birim:'');
+   return [hd('Girilen değerler ve hesap'),...(fs.length?fs.map(f=>para([run(f.l+': ',{bold:true,size:18}),run(val(f),{size:18})],{a:20})):[para('Değer girilmedi.',{size:18,it:true,color:MUT,a:20})]),
+    para(guideCalc(c,S).text,{size:18,bold:true,color:NAVY,a:40})]})():[]),
+  ...(Gd.detay?txt(Gd.detay):[]),
+  para(Gd.kuralText,{size:17,it:true,color:MUT,a:20}),
+  hd('Yöntem'),...txt(Gd.yontem),
+  hd('Başvuru sahibi tarafından teslim edilmesi gereken belgeler'),...txt(Gd.belgeler),
+  ...((Gd.tanimlar||[]).length?[hd('Tanımlar'),...Gd.tanimlar.map(([k,v])=>para([run(k+': ',{bold:true,size:18}),run(v,{size:18})],{a:20}))]:[]),
+  ...((Gd.kaynaklar||[]).length?[hd('Kaynaklar / Standartlar'),...Gd.kaynaklar.map(k=>para('• '+k,{size:18,a:20}))]:[])]};
+const orgBlock=c=>{const im=ORGIMG[c.id];if(!im)return [];
+ return [new Paragraph({alignment:AlignmentType.CENTER,keepNext:true,spacing:{before:160,after:40},children:[new ImageRun({type:'png',data:im.data,transformation:(k=>({width:Math.round(im.w*k),height:Math.round(im.h*k)}))(Math.min(1,620/im.w,700/im.h))})]}),
+  para([run('Şekil: ',{bold:true,it:true,size:18}),run(`Organizasyon Şeması · ${c.c}`,{it:true,size:18})],{al:AlignmentType.CENTER,a:120})]};
 const cardFiles=c=>FL(c).length?FL(c).map((f,i)=>para(`${evidenceNo(c,i)}  ·  ${f.name}  (${ext(f)}, ${presented(f).toLowerCase()})  →  Bölüm 10, EK-${modEk(c)}`,{size:17,a:20})):[para('Kanıt belgesini (rapor, proje, sözleşme, fotoğraf, belge görüntüsü vb.) bu alana ekleyiniz. Belge adı / tarih / sayfa: …',{size:17,it:true,color:MUT,a:20})];
 const CHP=CH?[para('Şekil 1. Modül bazlı ağırlıklı krediler (azami / alınan / hedef şart)',{it:true,color:MUT,size:18,b:140}),new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({type:'png',data:CH.bar,transformation:{width:600,height:260}})]}),para('Şekil 2. Modül doluluk oranları (alınan / azami kredi)',{it:true,color:MUT,size:18,b:140}),new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({type:'png',data:CH.radar,transformation:{width:380,height:360}})]})]:[];
 
@@ -168,7 +213,7 @@ kids.push(h1('4. YeS-TR SERTİFİKA SİSTEMİ'),
 
 // ---- 5 Sonuçlar
 const mrows=idx.map(i=>{const x=R.mods[i],m=D.mods[i];return [{t:m,bold:true,color:NAVY},Math.round(x.w*10000)/100+'%',filled?`${n2(x.raw)} / ${n2(x.max)}`:ph(`… / ${n2(x.max)}`),filled?f2(x.wc):ph('…'),m==='İNO'?'—':(x.min?String(x.min[g]):'Kapsam'),m==='İNO'?'—':(filled?{t:x.met[g]?'Sağlandı':'Eksik',color:x.met[g]?GRN:RED,bold:true}:ph('…'))]});
-const zrows=D.crit.filter(c=>isZ(c,S)).map(c=>[c.c,c.n+(c.zg?` (${G[c.zg]} ve üstü dereceler için zorunlu)`:''),STG[c.s],filled?{t:S.z[c.id]?'Sağlandı':'Eksik',bold:true,color:S.z[c.id]?GRN:RED}:ph('…')]);
+const zrows=D.crit.filter(c=>isZ(c,S)).map(c=>[c.c,c.n+(c.zg?` (${G[c.zg]} ve üstü dereceler için zorunlu)`:''),STG[c.s],filled?{t:zMet(c,S)?'Sağlandı':'Eksik',bold:true,color:zMet(c,S)?GRN:RED}:ph('…')]);
 const cond=[['Toplam ağırlıklı kredi',`≥ ${TH[g]}`,filled?f2(R.total):ph('…'),filled?{t:R.total+EPS>=TH[g]?'Sağlandı':'Eksik',bold:true,color:R.total+EPS>=TH[g]?GRN:RED}:ph('…')]];
 R.mods.slice(0,5).forEach(x=>cond.push([`${x.m} modül kredisi`,(x.min?`≥ ${x.min[g]}`:'Her temadan ≥1 kredi'),filled?f2(x.wc):ph('…'),filled?{t:x.met[g]?'Sağlandı':'Eksik',bold:true,color:x.met[g]?GRN:RED}:ph('…')]));
 cond.push(['Zorunlu kriterler','Tümü sağlanmalı',filled?(R.miss.length?R.miss.length+' eksik':'Tamam'):ph('…'),filled?{t:R.miss.length?'Eksik':'Sağlandı',bold:true,color:R.miss.length?RED:GRN}:ph('…')]);
@@ -217,9 +262,9 @@ idx.forEach(i=>{const m=D.mods[i];sec++;
    new TableRow({cantSplit:true,children:[cell(`${c.c}${c.g?' (Seçenek '+c.id.slice(-1)+')':''} · ${c.n}`,W,{span:4,fill:NAVY,color:'FFFFFF',bold:true,size:19})]}),
    new TableRow({cantSplit:true,children:['Proje aşaması','Alınabilir kredi','Alınan kredi','Kanıt durumu'].map((t,j)=>cell(t,[2300,2300,2300,2738][j],{fill:LIGHT,bold:true,color:NAVY,size:17}))}),
    new TableRow({cantSplit:true,children:[STG[c.s],cap(c),alinan(c),ek(c)].map((t,j)=>cell(t,[2300,2300,2300,2738][j],{size:19}))}),
-   new TableRow({children:[cell([para('Gereklilik',{size:17,bold:true,color:NAVY,a:20}),...(c.r||'Kılavuzdaki kriter gerekliliğine bakınız.').split('\n').map(l=>para(l,{size:18,a:20}))],W,{span:4})]}),
+   new TableRow({children:[cell(typeof CRIT_GUIDE!=='undefined'&&CRIT_GUIDE[c.id]?guideParas(c):[para('Gereklilik',{size:17,bold:true,color:NAVY,a:20}),...(c.r||'Kılavuzdaki kriter gerekliliğine bakınız.').split('\n').map(l=>para(l,{size:18,a:20}))],W,{span:4})]}),
    new TableRow({children:[cell([para('Proje çözümü / uygulama gerekçesi',{size:17,bold:true,color:NAVY,a:20}),para(S.n[c.id]||'[Kriterin projede nasıl karşılandığını, hesap ve kabulleri kısaca açıklayınız.]',{size:18,it:!S.n[c.id],color:S.n[c.id]?undefined:MUT,a:20})],W,{span:4})]}),
-   new TableRow({height:{value:1500,rule:'atLeast'},children:[cell([para(FL(c).length?`KANIT BELGELERİ  ·  ${FL(c).length} dosya`:`KANIT EKLEME ALANI  ·  ${eAd(c)}`,{size:17,bold:true,color:BLUE,a:40}),...cardFiles(c)],W,{span:4,dash:true,fill:'F7FAFE'})]})]}),gap())})});
+   new TableRow({height:{value:1500,rule:'atLeast'},children:[cell([para(FL(c).length?`KANIT BELGELERİ  ·  ${FL(c).length} dosya`:`KANIT EKLEME ALANI  ·  ${eAd(c)}`,{size:17,bold:true,color:BLUE,a:40}),...cardFiles(c)],W,{span:4,dash:true,fill:'F7FAFE'})]})]}),...critTableBlock(c),...orgBlock(c),gap())})});
 
 // ---- 8 Kanıt dizini
 kids.push(h1('8. KANIT BELGE DİZİNİ'),para('Aşağıdaki dizin, kriter bazında sunulacak kanıt belgelerinin izlenmesi için kullanılır. Ek numaraları Bölüm 10\'daki ek sayfalarıyla eşleşir.'));

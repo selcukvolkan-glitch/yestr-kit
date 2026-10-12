@@ -18,34 +18,213 @@ const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.dwg,.dxf,.zip,.rar,.txt,.
 function row(c) {
   const id = c.id, z = isMandatory(c, S), m = maxCredit(c, S), e = earnableCredit(c, S), v = S.v[id] ?? '';
   const stage = c.s ? `<span class="st">${STAGES[c.s]}</span>` : '';
-  const req = c.r ? `<details class="rq"><summary>Gereklilik</summary>${esc(c.r)}</details>` : '';
+  const G = typeof CRIT_GUIDE !== 'undefined' && CRIT_GUIDE[id];
+  const req = G ? guideBlock(c) : c.r ? `<details class="rq"><summary>Gereklilik</summary>${esc(c.r)}</details>` : '';
   const evid = ['Yok', 'Hazırlanıyor', 'Tamam'].map(x => `<option ${(S.e[id] || 'Yok') == x ? 'selected' : ''}>${x}</option>`).join('');
   const zLabel = c.zg ? `Zorunlu (${GRADES[c.zg]} ve üstü)` : 'Zorunlu';
   const mxText = !m ? '' : e ? 'maks ' + num(m) : `azami ${num(m)} · kredi kazanılamaz`;
   const ncNote = m && !e ? `<div class="note" style="margin:-2px 0 6px">Yalnızca Evet/Hayır olarak değerlendirilir; ${num(m)} kredi modülün azami kredisine dahildir ancak kazanılamaz (YeS-TR Puan Hesaplama v1.3).</div>` : '';
+  // Kılavuza göre bu projede uygulanmayan kriter: yalnızca başlık, bilgi ve kılavuz (giriş alanları yok)
+  if (G && !guideReqs(c, S).length) return `<div class="r na" data-id="${id}">
+  <div class="h"><b>${c.c}</b>${stage}<span class="st">Uygulanmaz</span><span class="mxv"></span></div>
+  <div class="t">${esc(c.n)}</div>${req}
+</div>`;
   return `<div class="r" data-id="${id}">
   <div class="h"><b>${c.c}</b>${stage}${z ? `<span class="z">${zLabel}</span>` : ''}<span class="st" data-c="${id}" hidden></span><span class="mxv">${mxText}</span></div>
   <div class="t">${esc(c.n)}</div>${ncNote}${req}
   <div class="ctl">
-    ${z ? `<label class="chk"><input type="checkbox" data-a="z" ${S.z[id] ? 'checked' : ''}> Şart sağlandı</label>` : ''}
-    ${e ? `<input type="number" inputmode="decimal" min="0" max="${e}" step="any" data-a="v" value="${v}" placeholder="0"><button data-a="f">Tam</button>` : ''}
+    ${z && !G ? `<label class="chk"><input type="checkbox" data-a="z" ${S.z[id] ? 'checked' : ''}> Şart sağlandı</label>` : ''}
+    ${G ? `<span class="gcr ${guideOk(c) ? 'ok' : ''}" data-gc="${id}">${guideCreditText(c)}</span>`
+      : e ? `<input type="number" inputmode="decimal" min="0" max="${e}" step="any" data-a="v" value="${v}" placeholder="0"><button data-a="f">Tam</button>` : ''}
     <select data-a="e" title="Kanıt durumu">${evid}</select>
     <input type="text" data-a="n" placeholder="Proje çözümü / not" value="${esc(S.n[id] || '')}">
   </div>
+  ${tableOn(id, S) ? `<div class="ctab" data-ct="${id}">${critTable(id)}</div>` : ''}
+  ${hasOrg(id, S) ? `<div class="ctab orgc" data-orgc="${id}">${orgEditor(id)}</div>` : ''}
   <div class="ev">
-    <label class="up" title="PDF, Word, Excel, görsel, DWG vb. Dosyaları bu satırın üzerine sürükleyip de bırakabilirsiniz.">📎 Kanıt dosyası ekle<input type="file" multiple accept="${ACCEPT}" data-a="up" hidden></label>
+    <label class="up" title="PDF, Word, Excel, görsel, DWG vb. Dosyaları bu satırın üzerine sürükleyip de bırakabilirsiniz.">📎 ${esc((G && G.kanit) || 'Kanıt dosyası ekle')}<input type="file" multiple accept="${ACCEPT}" data-a="up" hidden></label>
     <span class="note">veya dosyayı buraya sürükleyin</span>
   </div>
   <div class="fls" data-t="${id}"></div>
 </div>`;
 }
 
+// ---- Kılavuzu tanımlı kriterler (guide.js): gereklilik listesi + otomatik kredi
+// Durum kutusu: uygulanmaz / zorunlu şart / kredi
+const guideOk = c => guideReqs(c, S).length && (guideOf(c).kural === 'mandatory' ? guideMet(c, S) : givenCredit(c, S) > 0 && (!isMandatory(c, S) || guideMet(c, S)));
+function guideCreditText(c) {
+  if (!guideReqs(c, S).length) return `Uygulanmaz <small>(${DURUM_AD[S.durum]} binalar için)</small>`;
+  if (guideOf(c).kural === 'mandatory') return guideMet(c, S) ? '✓ Zorunlu şart sağlandı' : 'Zorunlu şart sağlanmadı <small>(gerekliliği işaretleyin)</small>';
+  const m = earnableCredit(c, S), got = givenCredit(c, S);
+  // Kredisi de olan zorunlu kriter (ör. İOK 03 K1 eğitim / sağlık, İOK 04 K1 konut dışı)
+  const zs = isMandatory(c, S) ? (guideMet(c, S) ? ' · zorunlu şart ✓' : ' · zorunlu şart sağlanmadı') : '';
+  return `${got ? '✓ ' : ''}Kredi: ${num(got)} / ${num(m)}${zs} <small>(gerekliliklere göre otomatik)</small>`;
+}
+function guideBlock(c) {
+  const G = guideOf(c), dn = DURUM_AD[S.durum];
+  // Zorunlu kılavuz kriteri: önceki sürümde "Şart sağlandı" işaretlenmişse gereklilikler işaretli başlasın
+  if (G.kural === 'mandatory' && S.z[c.id] && !(S.g && S.g[c.id])) {
+    S.g = S.g || {}; S.g[c.id] = {}; guideReqs(c, S).forEach(g => S.g[c.id][g.no] = true);
+  }
+  if (!guideReqs(c, S).length) {
+    return `<div class="gl na"><div class="glt">Gereklilikler · ${dn} bina</div><div class="gq">Bu kriter ${dn} binalar için uygulanmaz.</div></div>`;
+  }
+  const items = G.gerek.filter(g => gTip(g, S)).map(g => { // başka bina tiplerine ait gereklilikler gösterilmez
+    const on = g.durum.includes(S.durum);
+    const forWhom = g.durum.length === 1 ? ` <small>· ${DURUM_AD[g.durum[0]]} binalar için</small>` : '';
+    if (g.head) return `<div class="gq gh ${on ? '' : 'na'}"><span><b>(${g.no})</b> ${esc(g.text)}${forWhom}</span></div>`; // işaretlenmeyen başlık
+    const sub = g.sub ? ' sub' : '';
+    return on
+      ? `<label class="chk gq${sub}"><input type="checkbox" data-gq="${g.no}" ${guideChecked(c, S, g.no) ? 'checked' : ''}> <span><b>(${g.no})</b> ${esc(g.text)}${forWhom}</span></label>`
+      : `<div class="gq na${sub}"><span><b>(${g.no})</b> ${esc(g.text)}${forWhom}</span></div>`;
+  }).join('');
+  return `<div class="gl"><div class="glt">Gereklilikler · ${dn} bina</div>${G.not ? `<div class="note gn">${esc(G.not)}</div>` : ''}${items}
+      ${G.kural === 'hesap' ? guideInputsHtml(c) : ''}
+      <div class="note">${esc(G.kuralText)}</div></div>`;
+}
+// 'hesap' kuralı: değer giriş alanları + hesap sonucu
+function guideInputsHtml(c) {
+  const v = gvOf(c, S);
+  const field = f => {
+    const val = v[f.k] ?? '', unit = f.birim ? `<small>${esc(f.birim)}</small>` : '';
+    const ctl = f.t === 'sel'
+      ? `<select data-gv="${f.k}">${f.opts.map(([o, l]) => `<option value="${esc(o)}" ${val === o ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`
+      : `<input type="text" inputmode="decimal" data-gv="${f.k}" value="${esc(val)}" placeholder="0">`;
+    return `<label class="gin"><span>${esc(f.l)}${f.ipucu ? ` <small>(${esc(f.ipucu)})</small>` : ''}</span><span class="giv">${ctl}${unit}</span></label>`;
+  };
+  return `<div class="gins">${guideInputs(c, S).map(field).join('')}</div>
+      <div class="ghr" data-gh="${c.id}">${esc(guideCalc(c, S).text)}</div>`;
+}
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (!t.dataset || t.dataset.gv === undefined) return;
+  const id = t.closest('.r').dataset.id, c = D.crit.find(x => x.id === id);
+  S.gv = S.gv || {};
+  (S.gv[id] = S.gv[id] || {})[t.dataset.gv] = t.value;
+  const h = document.querySelector(`[data-gh="${id}"]`);
+  if (h) h.textContent = guideCalc(c, S).text;
+  if (isMandatory(c, S)) S.z[id] = guideMet(c, S);
+  const pill = document.querySelector(`[data-gc="${id}"]`);
+  if (pill) { pill.innerHTML = guideCreditText(c); pill.classList.toggle('ok', !!guideOk(c)); }
+  update();
+});
+// Not: amaç, yöntem, teslim edilecek belgeler ve tanımlar sitede gösterilmez; yalnızca raporda yer alır.
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (!t.dataset || t.dataset.gq === undefined) return;
+  const id = t.closest('.r').dataset.id, c = D.crit.find(x => x.id === id);
+  S.g = S.g || {};
+  (S.g[id] = S.g[id] || {})[t.dataset.gq] = t.checked;
+  // 'tiers': üst kademe alt kademeleri kapsar (ör. PPD < %10 ise PPD < %15 de sağlanır)
+  // (ayri: true olan kademe, ör. alternatif yöntem, zincire dahil değildir)
+  const G = guideOf(c), chain = G.kural === 'tiers' ? G.tiers.filter(x => !x.ayri) : [];
+  const ti = chain.findIndex(x => String(x.no) === t.dataset.gq);
+  if (ti >= 0) {
+    chain.forEach((x, i) => { if (t.checked ? i < ti : i > ti) S.g[id][x.no] = t.checked; });
+    t.closest('.gl').querySelectorAll('[data-gq]').forEach(b => { b.checked = !!S.g[id][b.dataset.gq]; });
+  }
+  if (G.kural === 'mandatory' || isMandatory(c, S)) S.z[id] = guideMet(c, S); // zorunlu şart işaretlerden
+  const pill = document.querySelector(`[data-gc="${id}"]`);
+  if (pill) { pill.innerHTML = guideCreditText(c); pill.classList.toggle('ok', !!guideOk(c)); }
+  update();
+});
+
+// ---- Kritere özel tablolar (CRIT_TABLES): ör. BBT 01 K1 görev / sorumluluk çizelgesi
+// Kayıt yoksa tanımdaki kadar boş satır gösterilir; ilk girişte satırlar projeye yazılır.
+const tableRows = id => S.t && S.t[id] ? S.t[id] : Array.from({ length: CRIT_TABLES[id].rows }, () => ({}));
+function critTable(id) {
+  const T = CRIT_TABLES[id], rows = tableRows(id);
+  const head = T.cols.map(([, l, type]) => `<span>${l}${type === 'list' ? ' <small>(her satır bir madde)</small>' : ''}</span>`).join('');
+  const cell = (r, i, [k, l, type]) => {
+    if (type === 'list') return `<textarea rows="2" data-tb="${id}" data-ti="${i}" data-tk="${k}" placeholder="${l}">${esc(r[k] || '')}</textarea>`;
+    if (type === 'file') return `<div class="ctf">
+        ${(r[k] || []).map(f => `<span class="ctfi"><a href="#" data-tfo="${f.key}" title="Aç">${esc(f.name)}</a><b data-tfx="${f.key}" data-ti="${i}" data-tk="${k}" title="Kaldır">✕</b></span>`).join('')}
+        <label class="up sm">📎 ${(r[k] || []).length ? 'Ekle' : l}<input type="file" multiple accept="${ACCEPT}" data-tfu="${i}" data-tk="${k}" hidden></label></div>`;
+    if (type === 'yn') return `<select data-tb="${id}" data-ti="${i}" data-tk="${k}" title="${l}">${['', 'E', 'H'].map(x => `<option value="${x}" ${(r[k] || '') === x ? 'selected' : ''}>${x || '–'}</option>`).join('')}</select>`;
+    const it = type === 'date' || type === 'time' ? type : type === 'num' ? 'number' : 'text';
+    return `<input type="${it}" ${type === 'num' ? 'step="any" min="0" inputmode="decimal"' : ''} data-tb="${id}" data-ti="${i}" data-tk="${k}" placeholder="${l}" value="${esc(r[k] || '')}" title="${l}">`;
+  };
+  return `<div class="ctt">${T.title}</div>
+    <div class="ctr cth c${T.cols.length}">${head}<span></span></div>
+    ${rows.map((r, i) => `<div class="ctr c${T.cols.length}">${T.cols.map(col => cell(r, i, col)).join('')}
+      <button type="button" class="lx" data-tdel="${i}" title="Satırı sil">✕</button></div>`).join('')}
+    ${T.totals ? `<div class="ctot">${tableTotalsHtml(T, rows)}</div>` : ''}
+    ${T.note ? `<div class="note">${esc(T.note)}</div>` : ''}
+    <button type="button" class="ladd" data-tadd="1">+ Satır ekle</button>`;
+}
+// Otomatik toplam satırları (ilk iki sütun etiket, sonra sayı sütunlarının toplamları)
+const tableTotalsHtml = (T, rows) => tableTotals(T, rows).map(([label, sums]) =>
+  `<div class="ctr c${T.cols.length} tot"><span class="tl">${label}</span>${sums.map(s => `<span>${num(s)}</span>`).join('')}<span></span></div>`).join('');
+const ensureTable = id => { S.t = S.t || {}; if (!S.t[id]) S.t[id] = tableRows(id); return S.t[id]; };
+const fileColsOf = id => CRIT_TABLES[id].cols.filter(c => c[2] === 'file').map(c => c[0]);
+const dropKeys = keys => keys.forEach(k => tx('readwrite', s => s.delete(k)).catch(() => {}));
+
+// Tablo dosya sütunu: yükle / aç / kaldır
+document.addEventListener('change', async e => {
+  const t = e.target, box = t.closest && t.closest('[data-ct]');
+  if (!box || t.dataset.tfu === undefined) return;
+  const id = box.dataset.ct, files = [...t.files], errs = [];
+  t.value = '';
+  const rows = ensureTable(id), r = rows[+t.dataset.tfu];
+  for (const f of files) {
+    try { const s = await storeFile(id + '|belge', f); (r[t.dataset.tk] = r[t.dataset.tk] || []).push(s); } catch (x) { errs.push(x.message || f.name); }
+  }
+  save();
+  box.innerHTML = critTable(id);
+  if (errs.length) box.insertAdjacentHTML('beforeend', `<div class="note err">Eklenemedi: ${esc(errs.join(', '))}</div>`);
+  update();
+});
+document.addEventListener('click', async e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.tfo) {
+    e.preventDefault();
+    const r = await getFile(t.dataset.tfo).catch(() => null);
+    if (r) window.open(URL.createObjectURL(r.blob), '_blank');
+    return;
+  }
+  if (!(t.dataset && t.dataset.tfx)) return;
+  const box = t.closest('[data-ct]'), id = box.dataset.ct, r = ensureTable(id)[+t.dataset.ti];
+  r[t.dataset.tk] = (r[t.dataset.tk] || []).filter(f => f.key !== t.dataset.tfx);
+  dropKeys([t.dataset.tfx]);
+  save();
+  box.innerHTML = critTable(id);
+});
+document.addEventListener('input', e => {
+  const t = e.target, id = t.dataset && t.dataset.tb;
+  if (!id) return;
+  const rows = ensureTable(id);
+  rows[+t.dataset.ti][t.dataset.tk] = t.value;
+  save();
+  const tot = t.closest('[data-ct]').querySelector('.ctot'); // toplamlar anında güncellensin
+  if (tot) tot.innerHTML = tableTotalsHtml(CRIT_TABLES[id], rows);
+  // Şema henüz boşsa "Görev listesinden oluştur" butonu güncellensin
+  const ob = document.querySelector(`[data-orgc="${id}"]`);
+  if (ob && !orgNodes(S, id).length) ob.innerHTML = orgEditor(id);
+});
+document.addEventListener('click', e => {
+  const t = e.target, box = t.closest && t.closest('[data-ct]');
+  if (!box || !(t.dataset.tadd || t.dataset.tdel)) return;
+  const id = box.dataset.ct, rows = ensureTable(id);
+  if (t.dataset.tadd) rows.push({});
+  else {
+    const gone = rows.splice(+t.dataset.tdel, 1)[0] || {};
+    dropKeys(fileColsOf(id).flatMap(k => (gone[k] || []).map(f => f.key))); // satırın belgeleri de silinir
+  }
+  save();
+  box.innerHTML = critTable(id);
+});
+
+// Modül kutusundaki şart rozeti ikonları (sağlandı / sağlanmadı); hangisinin görüneceğini CSS seçer.
+const svgIcon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON_OK = svgIcon('<path class="i-ok" d="M5 12.5l4.5 4.5L19 7.5"/>');
+const ICON_NO = svgIcon('<path class="i-no" d="M12 6.5v7M12 18h.01"/>');
+
 // Modüller 6 kutu olarak gösterilir; seçili modülün kriterleri altta listelenir.
 function renderMods() {
   if (ACTIVE >= D.mods.length) ACTIVE = 0;
   setTimeout(() => Object.keys(S.f || {}).forEach(drawFiles));
-  $('#tiles').innerHTML = D.mods.map((m, i) => `<button class="tile ${i === ACTIVE ? 'on' : ''}" data-mi="${i}">
-    <span class="tc">${m}</span>${i < 5 ? `<span class="dot" id="md${i}"></span>` : ''}
+  $('#tiles').innerHTML = D.mods.map((m, i) => `<button class="tile${modClass(m)} ${i === ACTIVE ? 'on' : ''}" data-mi="${i}"${modStyle(m)}>
+    <span class="tc">${m}</span>${i < 5 ? `<span class="dot" id="md${i}">${ICON_OK}${ICON_NO}</span>` : ''}
     <span class="tn">${esc(moduleName(i))}</span>
     <span class="ts" id="mh${i}"></span>
     <span class="pb"><i id="mb${i}"></i></span>
@@ -59,7 +238,7 @@ function renderMods() {
   }).join('');
   if (!h) h = '<div class="note" style="padding:12px">Seçili aşamada bu modüle ait kriter yok.</div>';
   const tools = themes.length ? '<span class="tga"><button data-fold="1">Tümünü aç</button><button data-fold="0">Tümünü kapat</button></span>' : '';
-  $('#mods').innerHTML = `<div class="mp"><div class="mph"><b>${D.mods[ACTIVE]} · ${esc(moduleName(ACTIVE))}</b><span id="mph"></span>${tools}</div>${h}</div>`;
+  $('#mods').innerHTML = `<div class="mp${modClass(D.mods[ACTIVE])}"${modStyle(D.mods[ACTIVE])}><div class="mph"><b>${D.mods[ACTIVE]} · ${esc(moduleName(ACTIVE))}</b><span id="mph"></span>${tools}</div>${h}</div>`;
 }
 
 // Tema başlıklarının özetleri: kriter sayısı, kazanılan/azami kredi, eksik zorunlu
@@ -69,7 +248,7 @@ function themeStats() {
     const got = cs.reduce((a, c) => a + givenCredit(c, S), 0);
     const opts = cs.filter(c => c.g).map(c => maxCredit(c, S)); // seçeneklerden yalnızca en yükseği sayılır
     const max = cs.filter(c => !c.g).reduce((a, c) => a + maxCredit(c, S), 0) + (opts.length ? Math.max(...opts) : 0);
-    const miss = cs.filter(c => isMandatory(c, S) && !S.z[c.id]).length;
+    const miss = cs.filter(c => isMandatory(c, S) && !zMet(c, S)).length;
     // Tamamlandı: kazanılabilir kredilerin tamamı alınmış ve zorunlu eksik yok
     const earnOpts = cs.filter(c => c.g).map(c => earnableCredit(c, S));
     const earnMax = cs.filter(c => !c.g).reduce((a, c) => a + earnableCredit(c, S), 0) + (earnOpts.length ? Math.max(...earnOpts) : 0);
@@ -207,7 +386,7 @@ function update() {
   let done = 0, total = 0;
   D.crit.forEach(c => {
     const id = c.id;
-    if (+S.v[id] > 0 || (isMandatory(c, S) && S.z[id])) { total++; if (S.e[id] === 'Tamam') done++; }
+    if (+S.v[id] > 0 || (isMandatory(c, S) && zMet(c, S))) { total++; if (S.e[id] === 'Tamam') done++; }
   });
   const nFiles = D.crit.reduce((a, c) => a + ((S.f && S.f[c.id]) || []).length, 0);
   const nCrit = D.crit.filter(c => ((S.f && S.f[c.id]) || []).length).length;
@@ -316,6 +495,8 @@ function go(id) { save(); P.cur = id; S = Object.assign(blank(), P.list[id]); P.
 $('#pd').onclick = () => {
   const id = 'p' + Date.now(), c = JSON.parse(JSON.stringify(S));
   c.img = {}; c.f = {}; delete c.done; c.info.proje = (c.info.proje || 'Proje') + ' (kopya)';
+  // Dosyalar kopyalanmaz: tablo dosya sütunları (ör. yetki belgeleri) boşaltılır
+  for (const id in c.t || {}) if (CRIT_TABLES[id]) (c.t[id] || []).forEach(r => fileColsOf(id).forEach(k => delete r[k]));
   P.list[id] = c; go(id);
 };
 // ---- Silme: proje 7 gün "Silinen Projeler"de bekler, sonra kanıt dosyalarıyla kalıcı silinir
@@ -433,7 +614,7 @@ let FLOW = true;
 try { FLOW = sessionStorage.getItem('yestr_flow') !== '0'; } catch (e) {}
 const setFlow = v => { FLOW = v; try { sessionStorage.setItem('yestr_flow', v ? '1' : '0'); } catch (e) {} };
 const homeHash = () => FLOW ? LIST_HASH : OLD_HASH;
-const isUsed = p => !!(p.info && p.info.proje) || ['v', 'z', 'f', 'n'].some(k => p[k] && Object.keys(p[k]).length);
+const isUsed = p => !!(p.info && p.info.proje) || ['v', 'z', 'f', 'n', 'g', 't', 'org'].some(k => p[k] && Object.keys(p[k]).length);
 
 function route() {
   const h = location.hash;
