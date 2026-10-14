@@ -316,6 +316,41 @@ details.tg.done:not([open]) > summary:hover { filter: brightness(.97); }
 .gl .gn { margin: 0 0 4px; }
 .gq.gh { padding-left: 20px; }
 .gq.sub { margin-left: 24px; }
+/* Kılavuz PDF açılır penceresi */
+.pdfm { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 20, 35, .55); display: flex; align-items: center; justify-content: center; padding: 3vh 3vw; }
+.pdfb { background: var(--cd); border-radius: 10px; width: min(1100px, 100%); height: 100%; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0, 0, 0, .35); }
+.pdfh { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--bd); }
+.pdfh b { flex: 1; color: var(--pr); }
+.pdfh a { font-size: 13px; }
+.pdfh button { border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--mu); padding: 2px 6px; }
+.pdfh button:hover { color: var(--tx); }
+.pdfb iframe { flex: 1; width: 100%; border: 0; background: #525659; }
+body.pdfopen { overflow: hidden; }
+/* Seçim kutusu açıklamaları (kılavuz tanımları) */
+.fh { margin-top: 3px; font-size: 11.5px; line-height: 1.35; }
+.fh:empty { display: none; }
+/* 'hesap' kuralı: tablo girdisi (ör. SAY 01 K1 armatür hesabı) */
+.gin.grid { grid-column: 1 / -1; }
+.ggrid { overflow-x: auto; }
+.ggrid table { border-collapse: collapse; font-size: 12px; min-width: 460px; }
+.ggrid th, .ggrid td { padding: 3px 6px; text-align: left; border-bottom: 1px solid var(--bd); }
+.ggrid th { font-weight: 600; color: var(--mu); }
+.ggrid input { width: 80px; }
+/* Tablo 2.4.6 formu */
+.f246 table { min-width: 720px; }
+.f246 th, .f246 td { border: 1px solid var(--bd); text-align: center; }
+.f246 tr > th:first-child { text-align: left; white-space: nowrap; }
+.f246 th small { font-weight: 400; }
+.f246 .fh2 { color: var(--tx); }
+.f246 tr.fs > th { color: var(--tx); }
+.f246 td.fc { font-weight: 600; color: var(--tx); }
+.f246 td.fx { background: var(--hl); }
+.f246 input { width: 72px; }
+/* Modül paneli: uzmanlık (YESUM / YESDUM) */
+.mex { font-size: 12px; color: var(--mu); padding: 6px 12px; border-bottom: 1px solid var(--bd); }
+.mex summary { cursor: pointer; font-weight: 600; }
+.mex div { margin-top: 3px; }
+.mp.mc .mex summary { color: var(--mc); }
 /* 'hesap' kuralı: değer giriş alanları */
 .gins { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 6px 12px; margin: 8px 0 4px; }
 .gin { display: flex; flex-direction: column; gap: 2px; font-size: 12px; min-width: 0; }

@@ -10,7 +10,7 @@ const MODULE_NAMES = {
   'YMD': 'Yapı Malzemesi ve Yaşam Döngüsü',
   'EKV': 'Enerji Kullanımı ve Verimliliği',
   'SAY': 'Su ve Atık Yönetimi',
-  'İNO': 'İnovasyon (toplam puana dahil değil)'
+  'İNO': 'İnovasyon (toplama bonus, en fazla +10)'
 };
 const EPS = 1e-9;
 
@@ -37,10 +37,39 @@ const MOD_COLORS = {
   'YMD': { light: '#FDE5D1', dark: '#A26A43' },
   'EKV': { light: '#F1D8D7', dark: '#A8605E' },
   'SAY': { light: '#C3E3EB', dark: '#4D8796' },
-  'İNO': { light: '#DEDEDE', dark: '#7A7A7A' }
+  'İNO': { light: '#DEDEDE', dark: '#7A7A7A' }, // bina ve yerleşmede ortak
+  // Yerleşme: kılavuzdaki tema başlığı dolguları (BOL #F0D4C6, AKE #C4D79B, UHA #B1A0C7, KET #ADEDEB, SES #EAEAA2)
+  // bina paletiyle aynı yöntemle pastelleştirildi; koyu tonlar beyaz yazıyla ≈ 4,3 kontrast.
+  'BOL': { light: '#F6E6DE', dark: '#A06F56' },
+  'AKE': { light: '#DDE8C5', dark: '#5B8045' }, // koyu ton daha yeşile çekildi (SES ile karışmasın)
+  'UHA': { light: '#D2C8DF', dark: '#8A6CB0' },
+  'KET': { light: '#CFF5F3', dark: '#478381' },
+  'SES': { light: '#F3F3C9', dark: '#8C7228' }  // koyu ton hardala çekildi (AKE ile karışmasın)
 };
 const modStyle = m => MOD_COLORS[m] ? ` style="--mc:${MOD_COLORS[m].dark};--ml:${MOD_COLORS[m].light}"` : '';
 const modClass = m => MOD_COLORS[m] ? ' mc' : '';
+
+// Başvuru dosyasını hazırlayan (YESUM) ve raporu değerlendiren (YESDUM) meslek grupları (kılavuz Bölüm 3)
+const YESUM_TXT = '4 yıllık lisans öğrenimini tamamlayan üniversite mezunu';
+const MOD_EXPERTS = {
+  B: {
+    'BBT': 'Mimar, İnşaat Mühendisi, Makina Mühendisi, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, Elektronik ve Haberleşme Mühendisi',
+    'İOK': 'Mimar, İnşaat Mühendisi, Makina Mühendisi, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, İç Mimar, Elektronik ve Haberleşme Mühendisi',
+    'YMD': 'Mimar, İnşaat Mühendisi, Çevre Mühendisi',
+    'EKV': 'Mimar, Makina Mühendisi, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, Enerji Mühendisi, Enerji Sistemleri Mühendisi, Mekatronik Mühendisi, Elektronik ve Haberleşme Mühendisi, İnşaat Mühendisi',
+    'SAY': 'İnşaat Mühendisi, Makina Mühendisi, Çevre Mühendisi',
+    'İNO': 'Mimar, Makina Mühendisi, İnşaat Mühendisi, Çevre Mühendisi, İç Mimar, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, Enerji Mühendisi, Enerji Sistemleri Mühendisi, Mekatronik Mühendisi, Elektronik ve Haberleşme Mühendisi'
+  },
+  Y: {
+    'BOL': 'Şehir Plancısı, Harita ve Kadastro Mühendisi',
+    'AKE': 'Şehir Plancısı, Peyzaj Mimarı, Çevre Mühendisi, Biyolog, Jeoloji Mühendisi, Jeofizik Mühendisi, Harita ve Kadastro Mühendisi, Ziraat Mühendisi',
+    'UHA': 'Şehir Plancısı, İnşaat Mühendisi',
+    'KET': 'Mimar, Şehir Plancısı, Peyzaj Mimarı, Çevre Mühendisi, Harita ve Kadastro Mühendisi',
+    'SES': 'Sosyolog, Ekonomist (İktisatçı), Şehir Plancısı, Gayrimenkul Geliştirme ve Yönetimi Uzmanı',
+    'İNO': 'Şehir Plancısı, Peyzaj Mimarı, Çevre Mühendisi, Mimar, Sosyolog, Ekonomist (İktisatçı), Biyolog, Makina Mühendisi, İnşaat Mühendisi, İç Mimar, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Enerji Mühendisi, Enerji Sistemleri Mühendisi, Mekatronik Mühendisi, Elektronik Mühendisi, Elektronik ve Haberleşme Mühendisi, Jeoloji Mühendisi, Harita ve Kadastro Mühendisi, Ziraat Mühendisi, Jeofizik Mühendisi, Gayrimenkul Geliştirme ve Yönetimi Uzmanı'
+  }
+};
+const modExperts = m => (MOD_EXPERTS[D.scale] || {})[m];
 
 // Raporda modüllerin sırası (binada YMD, İOK'tan önce gelir).
 function reportModuleOrder() { return D.scale === 'Y' ? [0, 1, 2, 3, 4, 5] : [0, 2, 1, 3, 4, 5]; }
@@ -50,7 +79,7 @@ function reportModuleOrder() { return D.scale === 'Y' ? [0, 1, 2, 3, 4, 5] : [0,
 // 'file' = dosya yükleme (kanıt dosyalarıyla aynı ek numaralandırmasına girer)
 // when: (isteğe bağlı) tablonun gösterileceği projeler
 const CRIT_TABLES = {
-  'BBT 01 K1': { title: 'Görev ve sorumluluk çizelgesi', rows: 1, cols: [
+  'BBT 01 K1': { title: 'Proje Ekibi Görev ve Sorumluluk Çizelgesi (Tablo 2.1.3)', rows: 1, when: p => p.durum === 'Y', cols: [
     ['gorev', 'Görev', 'text'], ['uzman', 'Uzman Adı Soyadı', 'text'], ['sor', 'Sorumluluk', 'list'], ['belge', 'Yetki Belgesi', 'file']] },
   'BBT 01 K3': { title: 'Proje İhtiyaç Programı (Tablo 2.1.4)', rows: 1, when: p => p.durum === 'Y', cols: [
     ['islev', 'İşlev', 'text'], ['miktar', 'Miktar', 'text'], ['birim', 'Birim (adet, m², m, …)', 'text']] },
@@ -96,7 +125,7 @@ function isMandatory(c, S) {
 // Zorunlu şart sağlandı mı? Kılavuzu tanımlı kriterde gereklilik işaretlerinden (guideMet),
 // diğerlerinde "Şart sağlandı" kutusundan. (Eski kayıt: yalnızca S.z işaretliyse onu kabul et.)
 function zMet(c, S) {
-  if (typeof CRIT_GUIDE !== 'undefined' && CRIT_GUIDE[c.id]) return guideMet(c, S) || (!!S.z[c.id] && !(S.g && S.g[c.id]));
+  if (guideOf(c)) return guideZMet(c, S) || (!!S.z[c.id] && !(S.g && S.g[c.id]));
   return !!S.z[c.id];
 }
 
@@ -112,7 +141,7 @@ const mandatoryFrom = c => c.zg || 0;
 // Alınan kredi. Kılavuzu tanımlı kriterlerde (guide.js) gereklilik işaretlerinden hesaplanır;
 // diğerlerinde girilen kredi 0..kazanılabilir aralığına sıkıştırılır.
 function givenCredit(c, S) {
-  if (typeof CRIT_GUIDE !== 'undefined' && CRIT_GUIDE[c.id]) return guideCredit(c, S, earnableCredit(c, S));
+  if (guideOf(c)) return guideCredit(c, S, earnableCredit(c, S));
   return Math.min(Math.max(+S.v[c.id] || 0, 0), earnableCredit(c, S));
 }
 
@@ -141,7 +170,13 @@ function calc(S) {
       : D.grp[i][k].every(gr => gr.some(hasCredit)));
     R.mods.push({ m, raw, max, w, wc: raw * w, min, met });
   });
-  R.total = R.mods.slice(0, 5).reduce((a, x) => a + x.wc, 0);
+  // Toplam: beş ana modülün ağırlıklı kredisi + İNO bonusu (İNO ağırlığı %10, en fazla +10; kılavuz: "+10 puan ile katılır")
+  R.base = R.mods.slice(0, 5).reduce((a, x) => a + x.wc, 0);
+  R.bonus = R.mods[5] ? R.mods[5].wc : 0;
+  R.total = R.base + R.bonus;
+  // Yerleşme: başvuru belgesi için BOL modülünden 8 ağırlıklı kredi (BOL'un tamamı) gerekir (kılavuz Bölüm 4.1, Aşama 1).
+  // Dereceyi etkilemez; sitede ve raporda bilgi / uyarı olarak gösterilir.
+  if (D.scale === 'Y') { const bol = R.mods[0]; R.bolNeed = bol.w * 100; R.bolOk = bol.wc + EPS >= R.bolNeed; }
   // missFor(g): g derecesi için aranan ama sağlanmamış zorunlu kriter kodları
   R.missFor = g => missing.filter(c => mandatoryFrom(c) <= g).map(c => c.c);
   R.miss = R.missFor(S.hedef ?? 0); // hedef derece için eksikler (arayüz ve rapor)
@@ -167,7 +202,7 @@ function suggest(S, R, g) {
   const take = (x, why) => {
     if (done[x.c.id]) return;
     done[x.c.id] = 1;
-    if (x.c.m < 5) tot += x.gain;
+    tot += x.gain; // İNO dahil (bonus da toplama eklenir)
     wcm[x.c.m] += x.gain;
     out.push({ c: x.c, why, gain: x.gain });
   };
@@ -185,7 +220,7 @@ function suggest(S, R, g) {
   });
   for (const x of cand) {
     if (tot + EPS >= D.th[g]) break;
-    if (x.c.m < 5) take(x, 'Toplam kredi hedefi');
+    take(x, 'Toplam kredi hedefi');
   }
   return { items: out, tot };
 }

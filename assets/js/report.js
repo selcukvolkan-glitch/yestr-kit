@@ -86,7 +86,7 @@ const idx=reportModuleOrder();
 const crit=m=>D.crit.filter(c=>c.m===m);
 const eAd=c=>'Ek-'+c.id.replace(/ /g,'');
 const zFrom=c=>c.zg?` (${G[c.zg]} ve üstü)`:'';
-const naGuide=c=>typeof CRIT_GUIDE!=='undefined'&&CRIT_GUIDE[c.id]&&!guideReqs(c,S).length; // kılavuza göre bu projede uygulanmaz
+const naGuide=c=>guideOf(c)&&!guideReqs(c,S).length; // kılavuza göre bu projede uygulanmaz
 const cap=c=>naGuide(c)?'Uygulanmaz':isZ(c,S)?(earnableCredit(c,S)?'Zorunlu'+zFrom(c)+' + '+n2(mx(c,S)):(mx(c,S)?`Zorunlu${zFrom(c)} (azami ${n2(mx(c,S))}, kazanılamaz)`:'Zorunlu'+zFrom(c))):n2(mx(c,S));
 const alinan=c=>{const id=c.id;if(naGuide(c))return '—';if(!filled)return ph('…');if(isZ(c,S)&&!earnableCredit(c,S))return zMet(c,S)?'Sağlandı':'Sağlanmadı';return n2(givenCredit(c,S))+(isZ(c,S)?(zMet(c,S)?' · şart ✓':' · şart ✗'):'')};
 const ek=c=>S.e[c.id]||(filled?'Yok':'…');
@@ -126,19 +126,27 @@ const critTableBlock=c=>{const T=CRIT_TABLES[c.id];if(!T||!tableOn(c.id,S))retur
  return [para(`${T.title} · ${c.c}`,{size:18,bold:true,color:NAVY,b:120,a:60,kn:true}),tbl(ws,T.cols.map(x=>x[1]),rows.concat(tots),{size:18}),
   ...(T.note?[para(T.note,{size:16,it:true,color:MUT,a:60})]:[])]};
 // Kılavuzu tanımlı kriter (guide.js): amaç, gereklilikler (durumlarıyla), kredi kuralı, yöntem, belgeler
-const guideParas=c=>{const Gd=CRIT_GUIDE[c.id],hd=t=>para(t,{size:17,bold:true,color:NAVY,a:20,b:60});
+const guideParas=c=>{const Gd=guideOf(c),hd=t=>para(t,{size:17,bold:true,color:NAVY,a:20,b:60});
  const st=g=>!gApplies(g,S)?{t:'— uygulanmaz',color:MUT}:!filled?{t:'…',color:MUT}:guideChecked(c,S,g.no)?{t:'✓ sağlandı',color:GRN}:{t:'✗ sağlanmadı',color:RED};
  // Metin ya da metin dizisi: '• ' ile başlayan öğeler girintili madde olarak
  const txt=v=>(Array.isArray(v)?v:[v]).map(x=>/^•\s*/.test(x)?para('• '+x.replace(/^•\s*/,''),{size:18,a:20,bul:false}):para(x,{size:18,a:20}));
  return [hd('Amaç'),...txt(Gd.amac),
-  hd(`Gereklilikler (${DURUM_AD[S.durum]} bina)`),
+  hd(`Gereklilikler (${DURUM_AD[S.durum]} ${birimAd()})`),
   ...(Gd.not?[para(Gd.not,{size:17,a:20,color:MUT})]:[]),
   ...Gd.gerek.filter(g=>gTip(g,S)).map(g=>{const s=g.head?{t:'',color:MUT}:st(g);
    return new Paragraph({indent:g.sub?{left:400}:undefined,spacing:{after:20,line:288},children:[run(`(${g.no}) `,{bold:true,size:18}),run(g.text,{size:18,color:gApplies(g,S)?undefined:MUT}),run('  '+s.t,{size:17,bold:true,color:s.color})]})}),
   // 'hesap' kuralı: girilen değerler ve hesap sonucu
-  ...(Gd.kural==='hesap'?(()=>{const v=gvOf(c,S),fs=guideInputs(c,S).filter(f=>v[f.k]!==undefined&&v[f.k]!=='');
-   const val=f=>f.t==='sel'?(f.opts.find(o=>o[0]===v[f.k])||['',v[f.k]])[1]:v[f.k]+(f.birim?' '+f.birim:'');
-   return [hd('Girilen değerler ve hesap'),...(fs.length?fs.map(f=>para([run(f.l+': ',{bold:true,size:18}),run(val(f),{size:18})],{a:20})):[para('Değer girilmedi.',{size:18,it:true,color:MUT,a:20})]),
+  ...(Gd.kural==='hesap'?(()=>{const v=gvOf(c,S),has=x=>x!==undefined&&x!=='';
+   const gridRows=f=>f.rows.filter(([r])=>f.cols.some(([cc])=>has(v[`${f.k}_${r}_${cc}`])));
+   const fs=guideInputs(c,S).filter(f=>f.t==='f246'?f246Has(v):f.t==='grid'?gridRows(f).length:has(v[f.k]));
+   // Tablo 2.4.6 (EKV 01 K2, mevcut bina): 7 sütunlu tablo
+   const f246Tbl=f=>{const x=k=>has(v[k])?String(v[k]):'—',sinif=k=>v[k]||'—';
+    const rows=F246_ROWS.map(([r,l])=>[{t:l,bold:r==='ara'||r==='net'},...F246_EN.map(([cc])=>r==='ara'?(f246Cell(v,'ara_'+cc)||'—'):x('f246_'+r+'_'+cc)),...F246_SG.map(([cc])=>r==='net'?x('f246_net_'+cc):'')]);
+    rows.push([{t:'EKB sınıfı',bold:true},sinif('f246_sinif_ab'),'',sinif('f246_sinif_kb'),'','','']);
+    rows.push([{t:'İyileştirme oranı',bold:true},f246Cell(v,'iyi_e')||'—','','','',f246Cell(v,'iyi_s')||'—','']);
+    return [para(f.l+' (enerji kWh/m².yıl; sera gazı kg eşd./m².yıl)',{size:18,bold:true,a:40,b:40}),tbl([2300,1220,1220,1220,1220,1230,1228],['','Asıl · birincil','Asıl · yenilenebilir','Kıyas. · birincil','Kıyas. · yenilenebilir','Asıl · sera gazı','Kıyas. · sera gazı'],rows,{size:16})]};
+   const val=f=>f.t==='grid'?gridRows(f).map(([r,l])=>l+': '+f.cols.filter(([cc])=>has(v[`${f.k}_${r}_${cc}`])).map(([cc,cl])=>cl.toLocaleLowerCase('tr-TR')+' '+v[`${f.k}_${r}_${cc}`]).join(', ')).join(' · '):f.t==='sel'?(f.opts.find(o=>o[0]===v[f.k])||['',v[f.k]])[1]:v[f.k]+(f.birim?' '+f.birim:'');
+   return [hd('Girilen değerler ve hesap'),...(fs.length?fs.flatMap(f=>f.t==='f246'?f246Tbl(f):[para([run(f.l+': ',{bold:true,size:18}),run(val(f),{size:18})],{a:20})]):[para('Değer girilmedi.',{size:18,it:true,color:MUT,a:20})]),
     para(guideCalc(c,S).text,{size:18,bold:true,color:NAVY,a:40})]})():[]),
   ...(Gd.detay?txt(Gd.detay):[]),
   para(Gd.kuralText,{size:17,it:true,color:MUT,a:20}),
@@ -165,7 +173,7 @@ const cnt={};D.crit.forEach(c=>{cnt[c.s]=cnt[c.s]||[0,0];cnt[c.s][0]++;if(S.e[c.
 const sumRows=[['Değerlendirme kapsamı',(YY?dur:`${dur} · ${tip}`)],['Hedef derece',`${G[g]} (toplam ≥ ${TH[g]} ağırlıklı kredi ve modül ${YY?'kapsam':'kredi'} şartları)`],
  ['Alınan toplam ağırlıklı kredi',filled?f2(R.total):ph('—')],['Ulaşılan derece',filled?(R.grade<0?'Derece alınamadı':G[R.grade]):ph('—')],
  ['Zorunlu kriterler',filled?(R.miss.length?`${R.miss.length} kriter eksik: ${R.miss.join(', ')}`:'Tümü sağlandı'):ph('—')],
- ['İnovasyon (toplam puana dahil değil)',filled?`${f2(R.mods[5].wc)} / ${f2(R.mods[5].max*R.mods[5].w)}`:ph('—')]];
+ ['İnovasyon bonusu (toplama eklenir)',filled?`${f2(R.mods[5].wc)} / ${f2(R.mods[5].max*R.mods[5].w)}`:ph('—')]];
 kids.push(h1('1. YÖNETİCİ ÖZETİ'),
  para(`Bu rapor, ${info.proje||'[Proje adı]'} projesinin Yeşil Sertifika Sistemi (YeS-TR) ${YY?'Yerleşme':'Bina'} Değerlendirme Kılavuzu kapsamındaki değerlendirmesini; modül, tema ve kriter bazında skorlama sonuçlarını, zorunlu kriter kontrolünü ve kriterlere ilişkin kanıt belge durumunu içermektedir.`),
  h2('1.1 Sonuç özeti'),kv(sumRows),
@@ -180,7 +188,7 @@ kids.push(h1('2. PROJE BİLGİLERİ'),
  kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Proje konumu (il / ilçe / ada-parsel)',val(K.konum)],[YY?'Ölçek':'Bina tipolojisi',tip],[YY?'Kategori':'Bina kategorisi',dur],['Toplam yapı inşaat alanı (m²)',val(K.alan)],['Kat adedi / kullanıcı kapasitesi',val(K.kat)],['Yapı ruhsat tarihi / no',val(K.ruhsat)],['Mimari proje müellifi',val(K.mimar)],['Yüklenici / Şantiye şefi',val(K.yuklenici)],['Hedef sertifika derecesi',G[g]]]),
  h2('2.2 Sertifikasyon paydaşları'),
  tbl([2400,2400,2400,2438],['Rol','Kurum / Kişi','Belge / Yetki no','İletişim'],[['Yeşil Sertifika Uzmanı (YESU)',val(info.yesu),val(RP.pay.yesu.no),val(RP.pay.yesu.iletisim)],['Yapı sahibi / Yetkilisi',val(info.kurum),val(RP.pay.sahip.no),val(RP.pay.sahip.iletisim)],['Değerlendirme Kuruluşu','Türkiye Çevre Ajansı','—','—'],['Değerlendirme Uzmanları (YESDU)',val(RP.pay.yesdu.kisi),val(RP.pay.yesdu.no),val(RP.pay.yesdu.iletisim)],['Proje müellifleri / Danışmanlar',val(RP.pay.muellif.kisi),val(RP.pay.muellif.no),val(RP.pay.muellif.iletisim)]]),
- h2('2.3 Proje ekibi ve sorumluluk çizelgesi'),note(YY?'Proje ekibi, görev ve sorumlulukları aşağıya işlenir.':'BBT 01 K1 kriteri kapsamında; mimar, inşaat, makine, elektrik-elektronik, çevre mühendisleri ve proje yöneticisinden oluşan ekip, görev ve sorumlulukları ile birlikte aşağıya işlenir.'),
+ h2('2.3 Proje ekibi ve sorumluluk çizelgesi'),note(YY?'Proje ekibi, görev ve sorumlulukları aşağıya işlenir.':'BBT 01 K1 kriteri kapsamında; mimar, inşaat mühendisi, makina mühendisi, elektrik / elektrik-elektronik mühendisi, proje yöneticisi ve (belirlenmiş ise) genel yüklenici ve alt yüklenicilerden oluşan ekip, görev ve sorumlulukları ile birlikte aşağıya işlenir.'),
  tbl([2800,2600,2400,1838],['Ad Soyad','Disiplin / Unvan','Görev ve sorumluluk','Oda sicil no'],RP.ekip.length?RP.ekip.map(r=>[val(r.ad,'…'),val(r.disiplin,'…'),val(r.gorev,'…'),val(r.sicil,'…')]):[...Array(4)].map(()=>[ph('…'),ph('…'),ph('…'),ph('…')])));
 
 // ---- 3 Dayanak
@@ -196,7 +204,7 @@ kids.push(h1('3. DAYANAK, KAPSAM VE YÖNTEM'),
  h2('3.2 Kapsam'),
  para(`Rapor, ${YY?'yerleşme':'bina'} ölçeğindeki altı modülü (${D.mods.join(', ')}) kapsar. Her kriter için kredi, zorunluluk ve kanıt belge durumu ayrı ayrı izlenir.`),
  h2('3.3 Yöntem'),
- ...[YY?'Yeni/mevcut kategorisine göre kriter kredileri ve modül ağırlıkları belirlenir.':'Bina tipolojisi ve yeni/mevcut kategorisine göre kriter kredileri ve modül ağırlıkları belirlenir.','Her modül için alınan krediler modül ağırlık katsayısı ile çarpılarak ağırlıklı kredi elde edilir; inovasyon modülü toplama dahil edilmez.',`Sertifika derecesi için; tüm zorunlu kriterlerin sağlanması, toplam ağırlıklı kredinin derece aralığında olması ve her modülün derece için tanımlı ${YY?'tema kapsam':'modül kredi'} şartını karşılaması birlikte aranır.`,'Kriterlerin kredi alabilmesi için yalnızca kanıt belgesinin sunulması yetmez; kriter gerekliliklerinin de sağlanması gerekir.'].map(t=>para(t,{bul:true})),
+ ...[YY?'Yeni/mevcut kategorisine göre kriter kredileri ve modül ağırlıkları belirlenir.':'Bina tipolojisi ve yeni/mevcut kategorisine göre kriter kredileri ve modül ağırlıkları belirlenir.','Her modül için alınan krediler modül ağırlık katsayısı ile çarpılarak ağırlıklı kredi elde edilir; inovasyon modülünün ağırlıklı kredisi (en fazla 10) toplama bonus olarak eklenir.',`Sertifika derecesi için; tüm zorunlu kriterlerin sağlanması, toplam ağırlıklı kredinin derece aralığında olması ve her modülün derece için tanımlı ${YY?'tema kapsam':'modül kredi'} şartını karşılaması birlikte aranır.`,'Kriterlerin kredi alabilmesi için yalnızca kanıt belgesinin sunulması yetmez; kriter gerekliliklerinin de sağlanması gerekir.'].map(t=>para(t,{bul:true})),
  h2('3.4 Sorumluluk sınırları'),note('Bu doküman tavsiye ve ön değerlendirme niteliğindedir; yürürlükteki mevzuat ve kılavuzla çelişmesi halinde mevzuat geçerlidir. Nihai puanlama Değerlendirme Kuruluşu tarafından yapılır.'));
 
 // ---- 4 Sistem
@@ -216,12 +224,13 @@ const mrows=idx.map(i=>{const x=R.mods[i],m=D.mods[i];return [{t:m,bold:true,col
 const zrows=D.crit.filter(c=>isZ(c,S)).map(c=>[c.c,c.n+(c.zg?` (${G[c.zg]} ve üstü dereceler için zorunlu)`:''),STG[c.s],filled?{t:zMet(c,S)?'Sağlandı':'Eksik',bold:true,color:zMet(c,S)?GRN:RED}:ph('…')]);
 const cond=[['Toplam ağırlıklı kredi',`≥ ${TH[g]}`,filled?f2(R.total):ph('…'),filled?{t:R.total+EPS>=TH[g]?'Sağlandı':'Eksik',bold:true,color:R.total+EPS>=TH[g]?GRN:RED}:ph('…')]];
 R.mods.slice(0,5).forEach(x=>cond.push([`${x.m} modül kredisi`,(x.min?`≥ ${x.min[g]}`:'Her temadan ≥1 kredi'),filled?f2(x.wc):ph('…'),filled?{t:x.met[g]?'Sağlandı':'Eksik',bold:true,color:x.met[g]?GRN:RED}:ph('…')]));
+if(YY)cond.push(['BOL başvuru koşulu (başvuru belgesi için)',`≥ ${n2(R.bolNeed)}`,filled?f2(R.mods[0].wc):ph('…'),filled?{t:R.bolOk?'Sağlandı':'Eksik',bold:true,color:R.bolOk?GRN:RED}:ph('…')]);
 cond.push(['Zorunlu kriterler','Tümü sağlanmalı',filled?(R.miss.length?R.miss.length+' eksik':'Tamam'):ph('…'),filled?{t:R.miss.length?'Eksik':'Sağlandı',bold:true,color:R.miss.length?RED:GRN}:ph('…')]);
 kids.push(h1('5. DEĞERLENDİRME SONUÇLARI'),
  h2('5.1 Modül bazlı skor tablosu'),
  tbl([1000,1300,1900,1900,1700,1838],['Modül','Ağırlık','Alınan / Maks. kredi','Ağırlıklı kredi',`${G[g]} için şart`,'Durum'],mrows),
- note('Ağırlıklı kredi = alınan kredi × modül ağırlık katsayısı. İNO modülü toplam puana dahil değildir.'),
- filled?para([run('Toplam ağırlıklı kredi (İNO hariç): ',{bold:true}),run(f2(R.total),{bold:true,color:NAVY,size:26})],{b:120}):para('Toplam ağırlıklı kredi: [hesaplanacak]',{it:true,color:MUT}),
+ note('Ağırlıklı kredi = alınan kredi × modül ağırlık katsayısı. İNO modülünün ağırlıklı kredisi toplama bonus olarak eklenir (en fazla +10).'),
+ filled?para([run('Toplam ağırlıklı kredi (İNO bonusu dahil): ',{bold:true}),run(f2(R.total),{bold:true,color:NAVY,size:26})],{b:120}):para('Toplam ağırlıklı kredi: [hesaplanacak]',{it:true,color:MUT}),
  ...CHP,h2(`5.2 Hedef derece (${G[g]}) uygunluk analizi`),
  tbl([3200,2200,2000,2238],['Koşul','Gerekli','Mevcut','Durum'],cond),
  h2('5.3 Zorunlu kriter kontrol listesi'),
@@ -256,13 +265,14 @@ kids.push(h1('7. KRİTER BAZLI DETAYLI DEĞERLENDİRME'),
 let sec=0;
 idx.forEach(i=>{const m=D.mods[i];sec++;
  kids.push(h2(`7.${sec} ${m} · ${MN[m]}`),para(MA[m],{it:true,color:MUT}));
+ if(modExperts(m))kids.push(para([run("Başvuru dosyasını hazırlayan (YESUM): ",{bold:true,size:17}),run(YESUM_TXT+".",{size:17}),run("  Raporu değerlendiren (YESDUM): ",{bold:true,size:17}),run(modExperts(m)+".",{size:17})],{a:80}));
  let th='';
  crit(i).forEach(c=>{if(c.t!==th){th=c.t;kids.push(h3(th))}
   kids.push(new Table({width:{size:W,type:WidthType.DXA},columnWidths:[2300,2300,2300,2738],rows:[
    new TableRow({cantSplit:true,children:[cell(`${c.c}${c.g?' (Seçenek '+c.id.slice(-1)+')':''} · ${c.n}`,W,{span:4,fill:NAVY,color:'FFFFFF',bold:true,size:19})]}),
    new TableRow({cantSplit:true,children:['Proje aşaması','Alınabilir kredi','Alınan kredi','Kanıt durumu'].map((t,j)=>cell(t,[2300,2300,2300,2738][j],{fill:LIGHT,bold:true,color:NAVY,size:17}))}),
    new TableRow({cantSplit:true,children:[STG[c.s],cap(c),alinan(c),ek(c)].map((t,j)=>cell(t,[2300,2300,2300,2738][j],{size:19}))}),
-   new TableRow({children:[cell(typeof CRIT_GUIDE!=='undefined'&&CRIT_GUIDE[c.id]?guideParas(c):[para('Gereklilik',{size:17,bold:true,color:NAVY,a:20}),...(c.r||'Kılavuzdaki kriter gerekliliğine bakınız.').split('\n').map(l=>para(l,{size:18,a:20}))],W,{span:4})]}),
+   new TableRow({children:[cell(guideOf(c)?guideParas(c):[para('Gereklilik',{size:17,bold:true,color:NAVY,a:20}),...(c.r||'Kılavuzdaki kriter gerekliliğine bakınız.').split('\n').map(l=>para(l,{size:18,a:20}))],W,{span:4})]}),
    new TableRow({children:[cell([para('Proje çözümü / uygulama gerekçesi',{size:17,bold:true,color:NAVY,a:20}),para(S.n[c.id]||'[Kriterin projede nasıl karşılandığını, hesap ve kabulleri kısaca açıklayınız.]',{size:18,it:!S.n[c.id],color:S.n[c.id]?undefined:MUT,a:20})],W,{span:4})]}),
    new TableRow({height:{value:1500,rule:'atLeast'},children:[cell([para(FL(c).length?`KANIT BELGELERİ  ·  ${FL(c).length} dosya`:`KANIT EKLEME ALANI  ·  ${eAd(c)}`,{size:17,bold:true,color:BLUE,a:40}),...cardFiles(c)],W,{span:4,dash:true,fill:'F7FAFE'})]})]}),...critTableBlock(c),...orgBlock(c),gap())})});
 

@@ -13,6 +13,8 @@
 //    sitede üst kademe işaretlenince alt kademeler de işaretlenir (ayri: true = zincir dışı alternatif);
 //  - kural 'hesap': uyan gereklilikler işaretli ve girilen değerlerden hesap(v, p) ile kredi;
 //    girdi: [{ k, l, t: 'num' | 'sel', opts?: [[değer, etiket]], durum?, birim?, ipucu? }] (değerler p.gv[id]);
+//  - kural 'sum': işaretli gerekliliklerin cr değerleri toplanır (cr: sayı ya da { Y, M }), azami krediyle sınırlı;
+//    aynı alt grubundaki (alt: 'x') seçeneklerden yalnızca en yükseği sayılır; zReq: zorunluluğu sağlayan gereklilikler;
 //  - gereklilikte tip: [bina tipi indeksleri] (TIPS sırası) = yalnızca bu tiplerde gösterilir;
 //  - zorunlu (isMandatory) kriterlerde zorunlu şart her kuralda guideMet ile belirlenir (engine.js zMet);
 //  - gereklilikte head: true = işaretlenmeyen başlık (alt maddeleri sub: true ile altında listelenir);
@@ -27,6 +29,8 @@
 //  - raporda kriter kartına amaç, gereklilikler (sağlandı / sağlanmadı / uygulanmaz),
 //    kredi kuralı, yöntem ve teslim edilecek belgeler yazılır.
 
+// YMD 01 K1 Tablo 2.3.3: sayılan ürün → kredi (yeni / mevcut)
+const YMD01_BANDS = { Y: [[6, 13], [7, 16], [8, 19], [9, 22], [10, 25]], M: [[6, 6], [7, 7], [8, 8], [9, 9], [10, 10]] };
 // Tüm bina tiplerinde aynı kademe kredisi: { Y: [y × 7], M: [m × 7] }
 const cr7 = (y, m) => ({ Y: Array(7).fill(y), M: Array(7).fill(m) });
 
@@ -44,6 +48,28 @@ const EKV_YEKO = {
   M: [[3, 4, 5], [5, 6, 4], [10, 8, 3], [15, 10, 3], [20, 12, 2], [25, 14, 2], [30, 16, 1], [35, 18, 0]]
 };
 const EVET_HAYIR = [['', 'Seçiniz'], ['H', 'Hayır'], ['E', 'Evet']];
+// ---- Tablo 2.4.6 Bina Enerji Tüketimi Değerlendirme Raporu (EKV 01 K2, mevcut binalar)
+// Değerler p.gv['EKV 01 K2'] içinde f246_<satır>_<sütun> anahtarlarıyla tutulur.
+// ARA TOPLAM ilk beş sistemin toplamıdır (otomatik); NET TOPLAM ve EKB sınıfları BEP-TR / EKB’den girilir.
+const F246_ROWS = [['isi', 'Isıtma Sistemi'], ['sog', 'Soğutma Sistemi'], ['hav', 'Havalandırma Sistemi'], ['ssu', 'Kullanım Sıcak Su Sistemi'], ['ayd', 'Aydınlatma Sistemi'], ['ara', 'ARA TOPLAM'], ['pv', 'Fotovoltaik Sistemi'], ['koj', 'Kojenerasyon Sistemi'], ['net', 'NET TOPLAM']];
+const F246_SIS = ['isi', 'sog', 'hav', 'ssu', 'ayd'];
+const F246_EN = [['abe', 'Asıl bina', 'Birincil enerji'], ['aye', 'Asıl bina', 'Yenilenebilir enerji'], ['kbe', 'Kıyaslanan bina', 'Birincil enerji'], ['kye', 'Kıyaslanan bina', 'Yenilenebilir enerji']];
+const F246_SG = [['asg', 'Asıl bina'], ['ksg', 'Kıyaslanan bina']];
+const EKB_SINIF = [['', '—'], ...'ABCDEFG'.split('').map(x => [x, x])];
+const f246Has = v => Object.keys(v).some(k => k.startsWith('f246_') && v[k] !== '');
+// ARA TOPLAM sütun değeri (girilmiş sistem yoksa NaN)
+const f246Ara = (v, col) => { const xs = F246_SIS.map(r => gnum(v[`f246_${r}_${col}`])).filter(x => !isNaN(x)); return xs.length ? xs.reduce((a, x) => a + x, 0) : NaN; };
+// İyileştirme oranları: E% = (KB − AB) / KB birincil enerji (NET), SGE% aynı biçimde sera gazı
+function f246Vals(v) {
+  const ab = gnum(v.f246_net_abe), kb = gnum(v.f246_net_kbe), as = gnum(v.f246_net_asg), ks = gnum(v.f246_net_ksg);
+  if (![ab, kb, as, ks].some(isNaN) && kb && ks) return { ok: true, E: (kb - ab) / kb * 100, S: (ks - as) / ks * 100 };
+  // eski kayıtlar: ayrı girilen KBBET / ABBET / KBSGE / ABSGE
+  const a = gnum(v.abbet), k = gnum(v.kbbet), s1 = gnum(v.absge), s2 = gnum(v.kbsge);
+  if (![a, k, s1, s2].some(isNaN) && k && s2) return { ok: true, E: (k - a) / k * 100, S: (s2 - s1) / s2 * 100 };
+  return { ok: false };
+}
+// Kıyaslanan binanın sınıfı → Tablo 2.4.8 grubu (A / B / C ve altı); eski kayıtlarda ksinif
+const f246KSinif = v => { const s = v.f246_sinif_kb || ''; return s ? (s === 'A' || s === 'B' ? s : 'C') : (v.ksinif || ''); };
 // EKV 02 K2 (iki seçenek) ortak kaynakları ve tanımları
 function EKV_YE_KAYNAK() {
   return [
@@ -74,6 +100,34 @@ const pct = x => '%' + fmtN(x);
 // Bina tipi grubu: 0 konut · 1 ofis, otel, AVM, diğer · 2 eğitim ve sağlık
 const sayGrp = p => +p.tip === 0 ? 0 : (+p.tip === 2 || +p.tip === 4) ? 2 : 1;
 const SAY_GRP_AD = ['Konut', 'Ofis, otel, AVM ve diğer', 'Eğitim ve sağlık'];
+// SAY 01 K1 armatür tablosu: [anahtar, ad, birim, referans (25.02.2022 ve sonrası), referans (öncesi),
+//   kullanım faktörü Kf: [konut, eğitim / ofis / AVM / diğer, otel, sağlık]] (kılavuz Tablo 2.5.4 ve 2.5.5; "-" = 0)
+const SAY_ARM = [
+  ['wc', 'WC', 'lt/kullanım', 6, 6, [0.30, 0.35, 0.22, 0.25]],
+  ['lav', 'Lavabo', 'lt/dk', 6, 12, [0.23, 0.30, 0.20, 0.30]],
+  ['dus', 'Duş', 'lt/dk', 8, 14, [0.21, 0.05, 0.24, 0.10]],
+  ['pis', 'Pisuar', 'lt/kullanım', 3.8, 3.8, [0, 0.20, 0.05, 0.06]],
+  ['evi', 'Mutfak eviyesi', 'lt/dk', 6, 12, [0.13, 0.10, 0.13, 0.13]],
+  ['evr', 'Mutfak eviyesi: restoran', 'lt/dk', 6, 10.3, [0.13, 0.10, 0.13, 0.13]],
+  ['bul', 'Bulaşık makinası', 'lt/çevrim', 17, 17, [0.03, 0, 0.05, 0.04]],
+  ['cam', 'Çamaşır makinası', 'lt/kullanım', 90, 90, [0.10, 0, 0.11, 0.12]]
+];
+// Kullanım faktörü sütunu: konut / eğitim, ofis, AVM, diğer / otel / sağlık
+const sayKfCol = p => ({ 0: 0, 3: 2, 4: 3 })[+p.tip] ?? 1;
+// I = Σ (Is × Io × Kf) × 100; Is = iyileştirilen / toplam adet; Io = (ruhsat dönemi referansı − yeni değer) / güncel referans
+// (Io tanımı kılavuzdaki örnekle doğrulanmıştır: lavabo (12 − 10) / 6 = 0,33; WC (6 − 3) / 6 = 0,5; I = 8,3).
+// Tabloda geçerli satır yoksa null döner.
+function sayArmCalc(v, p) {
+  const eski = v.ruhsat === 'O', kf = sayKfCol(p); let I = 0, any = false;
+  SAY_ARM.forEach(([k, , , refS, refO, kfs]) => {
+    const n = gnum(v[`arm_${k}_n`]), i = gnum(v[`arm_${k}_i`]), y = gnum(v[`arm_${k}_y`]);
+    if (!(n > 0) || isNaN(i) || isNaN(y)) return;
+    any = true;
+    const Is = Math.min(1, Math.max(0, i / n)), Io = Math.min(1, Math.max(0, ((eski ? refO : refS) - y) / refS));
+    I += Is * Io * kfs[kf];
+  });
+  return any ? { I: I * 100, note: v.ruhsat ? '' : ' (ruhsat tarihi seçilmedi; 25.02.2022 sonrası referanslar kullanıldı)' } : null;
+}
 // Tek oran girdisinden kredi: bands(p) = [[alt sınır, kredi], ...] (ilk aralık dahil, sınır değer üst aralığa)
 const sayOran = (k, ad, bands) => (v, p) => {
   const x = gnum(v[k]);
@@ -129,6 +183,28 @@ function iokAkustik(o) {
 }
 
 const CRIT_GUIDE = {
+  'BBT 01 K1': {
+    amac: 'Bu kriter, karar verme sürecinde etkili olmalarını sağlamak üzere; projenin başlangıcından itibaren tüm süreçte yer alacak proje ekibini belirlemeyi amaçlamaktadır.',
+    kanit: 'Kanıt belgeleri ekle',
+    gerek: [
+      { no: 1, text: 'Proje ekibini belirlemek: mimar, inşaat mühendisi, makina mühendisi, elektrik / elektrik-elektronik mühendisi, proje yöneticisi ve (belirlenmiş ise) genel yüklenici ve alt yükleniciler.', durum: ['Y', 'M'] },
+      { no: 2, text: 'Proje ekibinde yer alanların görev ve sorumluluklarını belirlemek.', durum: ['Y'] },
+      { no: 3, text: 'Proje organizasyon şemasını hazırlamak.', durum: ['Y'] }
+    ],
+    kural: 'mandatory',
+    kuralText: 'Yeni binalarda (1), (2) ve (3), mevcut binalarda (1) numaralı gereklilik yerine getirilmelidir.',
+    yontem: '‘Proje Ekibi Görev ve Sorumluluk Çizelgesi’nin ve ‘Organizasyon Şeması’nın varlığı kontrol edilmelidir.',
+    belgeler: [
+      'Aşağıda listelenen belgeler, kriterin değerlendirilmesi için sağlanmalıdır.',
+      'Yeni binalar için:',
+      '• Proje Ekibi Görev ve Sorumluluk Çizelgesi (Tablo 2.1.3),',
+      '• Organizasyon Şeması (Şekil 2.1.1).',
+      'Mevcut binalar için:',
+      '• Yapı Kullanma İzin Belgesi,',
+      '• Yapı ruhsatı eki projelerin onay sayfaları.'
+    ],
+    tanimlar: [['Proje Ekibi', 'Proje ekibi, aynı proje için faaliyet yürüten farklı uzmanlık alanlarına sahip katılımcıların oluşturduğu bir bütündür.']]
+  },
   'BBT 01 K2': {
     amac: 'Bu kriter ile, projenin performans hedeflerini belirlemek üzere Yeşil Sertifika Uzmanı’nın tasarım ve ruhsata tabi tadilat sürecine dahil olarak proje aşamasından başlayıp sertifika alımına kadar katkı sağlaması amaçlanmaktadır.',
     gerek: [
@@ -992,22 +1068,29 @@ const CRIT_GUIDE = {
   'YMD 01 K1': {
     amac: 'Yapı malzemesinin en az ‘Beşikten-kapıya’ ‘Yaşam Döngüsü Değerlendirilmesi’nin hazırlanması ile çevresel açıdan tercih edilebilir; yaşam döngüsü boyunca çevre etkisi en aza indirilmiş ürün ve malzemelerin kullanılmasının teşvik edilmesidir.',
     kanit: 'Kanıt belgeleri ekle',
-    not: 'Yöntem 1’de ulaşılan ürün sayısını işaretleyin (alt kademeler kendiliğinden işaretlenir). Ürüne özgü Tip III ÇÜB veya çevre etiketi olan ürün 1, endüstri çapında genel (jenerik) ÇÜB olan ürün 0,5 sayılır. Yöntem 2 ayrı bir seçenektir.',
-    gerek: [
-      { no: 1, head: true, text: 'Yöntem 1 – Çevresel Ürün Beyanları veya Sertifikaları: en az üç farklı üreticiden sağlanmış, ÇÜB veya ilgili çevre belgesi (Çevre Etiketi, EU Ecolabel, natureplus, cradle to cradle, FSC, PEFC, CSC vb.) olan malzeme / ürün sayısı:', durum: ['Y', 'M'] },
-      { no: '1.1', sub: true, text: '6 farklı malzeme / ürün', durum: ['Y', 'M'] },
-      { no: '1.2', sub: true, text: '7 farklı malzeme / ürün', durum: ['Y', 'M'] },
-      { no: '1.3', sub: true, text: '8 farklı malzeme / ürün', durum: ['Y', 'M'] },
-      { no: '1.4', sub: true, text: '9 farklı malzeme / ürün', durum: ['Y', 'M'] },
-      { no: '1.5', sub: true, text: '10 veya daha fazla malzeme / ürün', durum: ['Y', 'M'] },
-      { no: 2, text: 'Yöntem 2 – Malzemelerin / ürünlerin toplam maliyetinin en az %50’si için, küresel ısınma potansiyeli zorunlu olmak üzere en az 3 çevre etkisi kategorisi dikkate alınarak en az ‘Beşikten-kapıya’ Yaşam Döngüsü Değerlendirmesi sunulması ve çevre etkisinin endüstri ortalamasının altında kalması.', durum: ['Y', 'M'] }
+    not: 'Yöntem 1 için belgeli ürün ve üretici sayılarını girin; ürüne özgü Tip III ÇÜB veya çevre etiketi olan ürün 1, endüstri çapında genel (jenerik) ÇÜB olan ürün 0,5 sayılır. Yöntem 2 sağlanıyorsa tam kredi alınır.',
+    gerek: [{ no: 1, text: 'Malzemelere / ürünlere ait ÇÜB veya ilgili çevre belgelerinin ya da YDD raporlarının temin edilmesi.', durum: ['Y', 'M'] }],
+    girdi: [
+      { k: 'ozgu', l: 'Ürüne özgü Tip III ÇÜB veya çevre etiketi olan ürün sayısı', t: 'num', ipucu: '× 1' },
+      { k: 'jen', l: 'Endüstri çapında genel (jenerik) ÇÜB olan ürün sayısı', t: 'num', ipucu: '× 0,5' },
+      { k: 'ure', l: 'Bu ürünlerin farklı üretici sayısı', t: 'num', ipucu: 'en az 3' },
+      { k: 'y2', l: 'Yöntem 2: maliyetin en az %50’si için YDD, çevre etkisi endüstri ortalamasının altında mı?', t: 'sel', opts: EVET_HAYIR }
     ],
-    kural: 'tiers', must: [],
-    tiers: [
-      { no: '1.1', cr: cr7(13, 6) }, { no: '1.2', cr: cr7(16, 7) }, { no: '1.3', cr: cr7(19, 8) },
-      { no: '1.4', cr: cr7(22, 9) }, { no: '1.5', cr: cr7(25, 10) },
-      { no: 2, cr: cr7(25, 10), ayri: true }
-    ],
+    hesap: (v, p) => {
+      const full = p.durum === 'Y' ? 25 : 10;
+      if (v.y2 === 'E') return { cr: full, text: `Yöntem 2 sağlanıyor → ${full} kredi (tam kredi)` };
+      const a = gnum(v.ozgu), b = gnum(v.jen), u = gnum(v.ure);
+      if (isNaN(a) && isNaN(b)) { // eski kayıtlar: işaretlenmiş kademeler (1.1–1.5, 2)
+        const og = (p.g && p.g['YMD 01 K1']) || {}, old = og[2] ? 10 : ['1.5', '1.4', '1.3', '1.2', '1.1'].map((k, i) => og[k] ? 10 - i : 0).find(x => x) || 0;
+        if (old) { const cr = bandCredit(old, YMD01_BANDS[p.durum], true); return { cr, text: og[2] ? `Yöntem 2 (önceki işaret) → ${cr} kredi` : `Önceki işaret: ${old} ürün → ${cr} kredi (sayıları girerek güncelleyin)` }; }
+        return { cr: 0, text: 'Belgeli ürün sayılarını girin ya da Yöntem 2’yi seçin.' };
+      }
+      const n = (a || 0) + 0.5 * (b || 0), base = `Sayılan ürün = ${fmtN(a || 0)} + 0,5 × ${fmtN(b || 0)} = ${fmtN(n)}`;
+      if (!(u >= 3)) return { cr: 0, text: `${base} → en az 3 farklı üretici gerekir; kredi alınamaz.` };
+      const cr = bandCredit(n, YMD01_BANDS[p.durum], true);
+      return { cr, text: `${base} (${fmtN(u)} üretici) → ${cr ? cr + ' kredi' : 'en az 6 ürün gerekir; 0 kredi'}` };
+    },
+    kural: 'hesap',
     detay: [
       'Tablo 2.3.3 – ÇÜB veya ilgili çevre belgeleri olan malzeme / ürün sayısına göre krediler (yeni / mevcut bina):',
       '• 6 farklı malzeme / ürün: 13 / 6,',
@@ -1281,7 +1364,7 @@ const CRIT_GUIDE = {
   'EKV 01 K2': {
     amac: 'Binada kullanılan enerjinin verimliliği ve çevreye verdiği zararlar bina tasarımında alınan önlemlere, inşa edilirken kullanılan malzemeye, uygulamanın doğru yapılmasına ve işletilmesine bağlı olarak değişir. Yapım sürecinde alınacak önlemlerle konfor şartlarını bozmadan binanın enerji verimliliğinin artırılması ve bina kullanımında enerji tüketiminin azaltılması amaçlanmaktadır.',
     kanit: 'Kanıt belgeleri ekle',
-    not: 'Enerji Kimlik Belgesindeki değerleri girin; ağırlıklı enerji performansı iyileştirme oranı (EPİ) ve kredi otomatik hesaplanır.',
+    not: 'Yeni binalarda Enerji Kimlik Belgesindeki oranları, mevcut binalarda Bina Enerji Tüketimi Değerlendirme Raporu’nu (Tablo 2.4.6) girin; ağırlıklı enerji performansı iyileştirme oranı (EPİ) ve kredi otomatik hesaplanır.',
     gerek: [
       { no: 1, text: 'Binanın enerji performansının ve sera gazı emisyon değerlerinin BEP-TR ile hesaplanması (Enerji Kimlik Belgesi).', durum: ['Y', 'M'] },
       { no: 2, text: 'Bina enerji tüketimi değerlendirme raporunun hazırlanması (iyileştirme öncesi ve sonrası Enerji Kimlik Belgeleri ile).', durum: ['M'] }
@@ -1290,11 +1373,7 @@ const CRIT_GUIDE = {
       { k: 'epo', l: 'Enerji performans oranı (EPo)', t: 'num', durum: ['Y'], ipucu: 'EKB’deki oran; referans bina = 100' },
       { k: 'sgeo', l: 'Sera gazı emisyon oranı (SGEo)', t: 'num', durum: ['Y'], ipucu: 'EKB’deki oran; referans bina = 100' },
       { k: 'nseb', l: 'Ruhsat tarihine göre NSEB şartı', t: 'sel', durum: ['Y'], opts: [['', 'Yok / gerekmiyor'], ['A', 'NSEB: A sınıfı'], ['B', 'NSEB: B sınıfı'], ['C', 'NSEB: C sınıfı']] },
-      { k: 'kbbet', l: 'Kıyaslanan bina birincil enerji (KBBET)', t: 'num', durum: ['M'], birim: 'kWh/yıl' },
-      { k: 'abbet', l: 'Asıl bina birincil enerji (ABBET)', t: 'num', durum: ['M'], birim: 'kWh/yıl' },
-      { k: 'kbsge', l: 'Kıyaslanan bina sera gazı (KBSGE)', t: 'num', durum: ['M'], birim: 'kg eşd. CO₂/m².yıl' },
-      { k: 'absge', l: 'Asıl bina sera gazı (ABSGE)', t: 'num', durum: ['M'], birim: 'kg eşd. CO₂/m².yıl' },
-      { k: 'ksinif', l: 'Kıyaslanan binanın enerji sınıfı', t: 'sel', durum: ['M'], opts: [['', 'Seçiniz'], ['A', 'A'], ['B', 'B'], ['C', 'C veya daha düşük']] },
+      { k: 'f246', l: 'Bina Enerji Tüketimi Değerlendirme Raporu (Tablo 2.4.6)', t: 'f246', durum: ['M'] },
       { k: 'nsebm', l: 'Ruhsat tarihine göre NSEB olması gerekiyor mu?', t: 'sel', durum: ['M'], opts: EVET_HAYIR }
     ],
     hesap: (v, p) => {
@@ -1304,10 +1383,10 @@ const CRIT_GUIDE = {
         if (isNaN(ep) || isNaN(sg)) return { cr: 0, text: 'EPo ve SGEo değerlerini girin.' };
         E = 100 - ep; S = 100 - sg;
       } else {
-        const kb = gnum(v.kbbet), ab = gnum(v.abbet), ks = gnum(v.kbsge), as = gnum(v.absge);
-        if ([kb, ab, ks, as].some(isNaN) || !kb || !ks) return { cr: 0, text: 'Kıyaslanan ve asıl bina değerlerini girin.' };
-        if (!v.ksinif) return { cr: 0, text: 'Kıyaslanan binanın enerji sınıfını seçin.' };
-        E = (kb - ab) / kb * 100; S = (ks - as) / ks * 100;
+        const f = f246Vals(v), ks = f246KSinif(v);
+        if (!f.ok) return { cr: 0, text: 'Tablo 2.4.6’da asıl ve kıyaslanan bina için NET TOPLAM birincil enerji ve sera gazı emisyonu değerlerini girin.' };
+        if (!ks) return { cr: 0, text: 'Tablo 2.4.6’da kıyaslanan binanın Enerji Kimlik Belgesi sınıfını seçin.' };
+        E = f.E; S = f.S;
       }
       const epi = 0.65 * E + 0.35 * S, base = `E% = ${pct(E)} · SGE% = ${pct(S)} · EPİ = 0,65 × E% + 0,35 × SGE% = ${pct(epi)}`;
       let cr;
@@ -1318,8 +1397,9 @@ const CRIT_GUIDE = {
           if (epi < min) return { cr: 0, text: `${base} → NSEB (${v.nseb}) için EPİ en az ${pct(min)} olmalı; kredi alınamaz.` };
         }
       } else {
-        cr = bandCredit(epi, EKV_EPI_MEVCUT[v.ksinif]);
-        if (v.ksinif === 'B' && v.nsebm === 'E' && epi < 1) cr = 0; // NSEB olması gereken binalar bu aralıkta kredi alamaz
+        const ks = f246KSinif(v);
+        cr = bandCredit(epi, EKV_EPI_MEVCUT[ks]);
+        if (ks === 'B' && v.nsebm === 'E' && epi < 1) cr = 0; // NSEB olması gereken binalar bu aralıkta kredi alamaz
       }
       return { cr, text: `${base} → ${cr} kredi` };
     },
@@ -1470,12 +1550,22 @@ const CRIT_GUIDE = {
   'SAY 01 K1': {
     amac: 'Bu kriter ile binalarda suyun etkin ve verimli kullanılmasının sağlanması amaçlanmaktadır.',
     kanit: 'Kanıt belgeleri ekle',
-    not: 'Referans değere göre su kullanımında azalma oranını (I) girin; kredi bina tipine göre otomatik hesaplanır.',
+    not: 'Armatür tablosunu doldurun; azalma oranı (I) ve kredi otomatik hesaplanır. Hesabı başka yerde yaptıysanız I değerini doğrudan da girebilirsiniz.',
     gerek: [{ no: 1, text: 'Bina / konut içi su kullanan armatür, donatı ve cihazların asgari su kullanımını sağlayacak şekilde seçilmesi ve su kullanımında azalma oranı hesaplarının rapor halinde sunulması.', durum: ['Y', 'M'] }],
-    girdi: [{ k: 'oran', l: 'Su kullanımında azalma oranı (I)', t: 'num', birim: '%' }],
+    girdi: [
+      { k: 'ruhsat', l: 'Yapı ruhsatı tarihi', t: 'sel', opts: [['', 'Seçiniz'], ['S', '25.02.2022 ve sonrası'], ['O', '25.02.2022 öncesi']] },
+      { k: 'arm', l: 'Armatür ve donatılar', t: 'grid', ipucu: 'yeni değer: iyileştirilen armatürün debisi / hacmi', rows: SAY_ARM.map(a => [a[0], `${a[1]} (${a[2]})`]), cols: [['n', 'Toplam adet'], ['i', 'İyileştirilen adet'], ['y', 'Yeni değer']] },
+      { k: 'oran', l: 'Ya da hesaplanmış azalma oranı (I)', t: 'num', birim: '%' }
+    ],
     hesap: (v, p) => {
-      const r = sayOran('oran', 'Azalma oranı', p => [[1], [5], [11], [16], [26], [36]].map(([m], i) => [m, [[5, 10, 15, 18, 19, 20], [5, 10, 12, 13, 14, 15], [10, 12, 16, 21, 22, 23]][sayGrp(p)][i]]))(v, p);
-      return isNaN(gnum(v.oran)) ? r : { cr: r.cr, text: `${r.text} (${SAY_GRP_AD[sayGrp(p)]})` };
+      const grp = sayGrp(p), bands = [[1], [5], [11], [16], [26], [36]].map(([m], i) => [m, [[5, 10, 15, 18, 19, 20], [5, 10, 12, 13, 14, 15], [10, 12, 16, 21, 22, 23]][grp][i]]);
+      const calc = sayArmCalc(v, p);
+      if (calc) {
+        const cr = bandCredit(calc.I, bands, true);
+        return { cr, text: `I = Σ (Is × Io × Kf) × 100 = ${pct(calc.I)}${calc.note} → ${cr} kredi (${SAY_GRP_AD[grp]})` };
+      }
+      const r = sayOran('oran', 'Azalma oranı', () => bands)(v, p);
+      return isNaN(gnum(v.oran)) ? { cr: 0, text: 'Armatür tablosunu doldurun ya da azalma oranını (I) girin.' } : { cr: r.cr, text: `${r.text} (${SAY_GRP_AD[grp]})` };
     },
     kural: 'hesap',
     kuralText: 'Su kullanımında referans değere göre sağlanan azalma oranına göre, bina tipine bağlı olarak Tablo 2.5.3’te belirtilen krediler alınır.',
@@ -1492,7 +1582,7 @@ const CRIT_GUIDE = {
       'Binalarda suyun verimli ve etkin kullanımı için uygun armatür ve donatıların seçilmesi, perlatör vb. ekipman kullanımı ile bağlantılı olarak su kullanımında sağlanacak tasarruf oranı referans değere göre belirlenir. Su kullanımındaki fiili azalmalar referans değere göre yüzde (%) azalma şeklinde ifade edilir ve bu kriter tipolojilere göre kendi içerisinde derecelendirilir (Tablo 2.5.3).',
       'Tablo 2.5.4 – Bina içi armatür ve donatı referans değerleri (25.02.2022 sonrası / öncesi ruhsat): WC 6 / 6 lt/kullanım (etkin rezervuar hacmi) · Lavabo 6 / 12 lt/dk · Duş 8 / 14 lt/dk · Pisuar 3,8 / 3,8 lt/kullanım · Mutfak eviyesi 6 / 12 lt/dk · Mutfak eviyesi (restoran) 6 / 10,3 lt/dk · Bulaşık makinası 17 / 17 lt/çevrim · Çamaşır makinası 90 / 90 lt/kullanım. Yürürlükteki Planlı Alanlar İmar Yönetmeliği kapsamındaki güncel değerler alınır.',
       'Tablo 2.5.5 – Kullanım faktörleri (konut / eğitim, ofis, AVM, diğer / otel / sağlık): WC 0,30 / 0,35 / 0,22 / 0,25 · Lavabo 0,23 / 0,30 / 0,20 / 0,30 · Duş 0,21 / 0,05 / 0,24 / 0,10 · Pisuar – / 0,20 / 0,05 / 0,06 · Mutfak eviyesi 0,13 / 0,10 / 0,13 / 0,13 · Bulaşık makinası 0,03 / – / 0,05 / 0,04 · Çamaşır makinası 0,10 / – / 0,11 / 0,12.',
-      'Su kullanımında azalma oranı: I = Σ (Is × Io × Kf) × 100. Is: iyileştirilmiş armatür / donatı sayısının oranı (iyileştirilen adet / toplam adet), Io: iyileştirilmiş armatür / donatı için su kullanımında azalma oranı ((referans değer − yeni değer) / referans değer), Kf: kullanım faktörü (Tablo 2.5.5).',
+      'Su kullanımında azalma oranı: I = Σ (Is × Io × Kf) × 100. Is: iyileştirilmiş armatür / donatı sayısının oranı (iyileştirilen adet / toplam adet), Io: iyileştirilmiş armatür / donatı için su kullanımında azalma oranı ((ruhsat dönemine ait referans değer − yeni değer) / güncel referans değer; kılavuzdaki örnekle uyumlu), Kf: kullanım faktörü (Tablo 2.5.5).',
       'Örnek: Mevcut binada 10 lavabodan 6’sı 10 lt/dk, 8 WC’den 2’si 3 lt/kullanım olacak şekilde iyileştirilmiştir. Is(lavabo) = 6/10 = 0,6; Io(lavabo) = (12 − 10)/6 = 0,33; Is(WC) = 2/8 = 0,25; Io(WC) = (6 − 3)/6 = 0,5; I = ((0,6 × 0,33 × 0,23) + (0,25 × 0,5 × 0,3)) × 100 = 8,3.'
     ],
     belgeler: ['• Su kullanımında azalma oranı hesaplarının bir rapor halinde sunulması,', '• Kullanılan tüm armatür, donatı ve cihazlara ait teknik belgeler ile mevcut armatür, donatı ve cihazların fotoğrafı.'],
@@ -1675,7 +1765,7 @@ const CRIT_GUIDE = {
     kaynaklar: ['Atık Yönetimi Yönetmeliği', 'Hafriyat Toprağı, İnşaat ve Yıkıntı Atıklarının Kontrolü Yönetmeliği', 'Atık Ön İşlem ve Geri Kazanım Tesislerinin Genel Esaslarına İlişkin Yönetmelik', 'Sıfır Atık Uygulama Kılavuzu (https://cygm.csb.gov.tr/sifir-atik-uygulamalari-dairesi-baskanligi-i-108111)']
   },
 
-  // ==== İNO İnovasyon_Bina (kılavuz: ino.docx) — toplam puana dahil değil
+  // ==== İNO İnovasyon_Bina (kılavuz: ino.docx) — toplama bonus olarak eklenir (en fazla +10)
   // ---- İNO 01 Yaşam Kalitesini Yükselten Mühendislik ve Tasarım Çözümleri
   'İNO 01 K1': {
     amac: 'Bu kriter ile; mevcut sertifika gereklilikleri içinde bulunmayan ancak yeşil bina belgelendirmesinde inovatif değeri olan uygulamaların sağlanmış olması amaçlanmaktadır.',
@@ -1725,8 +1815,13 @@ const CRIT_GUIDE = {
   }
 };
 
-const guideOf = c => CRIT_GUIDE[c.id];
+// Ölçeğe göre kılavuz: bina CRIT_GUIDE, yerleşme CRIT_GUIDE_Y (guide-y.js). Kodlar ölçekler arasında
+// çakışabildiği için (ör. İNO 01 K1) arama her zaman etkin ölçeğe (D.scale) göre yapılır.
+const guideTable = () => (typeof D !== 'undefined' && D.scale === 'Y') ? (typeof CRIT_GUIDE_Y !== 'undefined' ? CRIT_GUIDE_Y : {}) : CRIT_GUIDE;
+const guideOf = c => guideTable()[c.id];
 const DURUM_AD = { Y: 'yeni', M: 'mevcut' };
+// Değerlendirilen birim adı: bina / yerleşme (çoğul: binalar / yerleşmeler)
+const birimAd = cogul => (typeof D !== 'undefined' && D.scale === 'Y') ? (cogul ? 'yerleşmeler' : 'yerleşme') : (cogul ? 'binalar' : 'bina');
 // Gereklilik bu bina tipinde gösterilir mi (tip: bina tipi indeksleri, TIPS sırası; yoksa tüm tipler)
 const gTip = (g, p) => !g.tip || g.tip.includes(+p.tip);
 // Gereklilik bu projeye uyar mı (durum + bina tipi)
@@ -1762,10 +1857,18 @@ function guideMet(c, p) {
   const G = guideOf(c), reqs = guideReqs(c, p), on = g => guideChecked(c, p, g.no);
   if (!reqs.length) return false;
   if (G.kural === 'hesap') return reqs.every(on) && guideCalc(c, p).cr > 0;
+  if (G.kural === 'sum') return reqNos(c, p, G.must || []).every(n => guideChecked(c, p, n)) && reqs.some(g => g.cr && on(g));
   if (G.kural === 'any') return reqs.some(on);
   if (G.kural === 'min') return reqNos(c, p, G.must).every(n => guideChecked(c, p, n)) && reqNos(c, p, G.pick.of).filter(n => guideChecked(c, p, n)).length >= G.pick.min;
   if (G.kural === 'tiers') return reqNos(c, p, G.must).every(n => guideChecked(c, p, n)) && tiersOn(c, p).length > 0;
   return reqs.every(on);
+}
+// Zorunlu şart: zReq tanımlıysa yalnızca bu gereklilikler (ör. UHA 03 K1: ulaşım şeması), değilse guideMet
+function guideZMet(c, p) {
+  const G = guideOf(c);
+  if (!G.zReq) return guideMet(c, p);
+  const ns = reqNos(c, p, G.zReq);
+  return ns.length > 0 && ns.every(n => guideChecked(c, p, n));
 }
 // Kılavuza göre alınan kredi (earn: kazanılabilir azami kredi)
 function guideCredit(c, p, earn) {
@@ -1774,6 +1877,14 @@ function guideCredit(c, p, earn) {
   switch (G.kural) {
     case 'any': case 'min': return guideMet(c, p) ? earn : 0;
     case 'hesap': return reqs.every(on) ? Math.min(earn, guideCalc(c, p).cr || 0) : 0;
+    case 'sum': // işaretli gerekliliklerin kendi kredileri toplanır (cr: sayı ya da { Y, M }); must varsa önce sağlanmalı
+      if (!reqNos(c, p, G.must || []).every(n => guideChecked(c, p, n))) return 0;
+      { // aynı alt grubundaki (g.alt) seçeneklerden yalnızca en yükseği sayılır
+        const val = g => typeof g.cr === 'object' ? g.cr[p.durum] : g.cr || 0, best = {};
+        let sum = 0;
+        reqs.filter(on).forEach(g => { if (g.alt) best[g.alt] = Math.max(best[g.alt] || 0, val(g)); else sum += val(g); });
+        return Math.min(earn, sum + Object.values(best).reduce((a, x) => a + x, 0));
+      }
     case 'tiers': // kademe kredisi bina durumu ve tipine göre (cr: { Y: [7 tip], M: [7 tip] }); en yüksek işaretli kademe
       if (!guideMet(c, p)) return 0;
       return Math.min(earn, Math.max(...tiersOn(c, p).map(t => t.cr[p.durum][+p.tip])));

@@ -6,7 +6,7 @@
 <title>YeS-TR Değerlendirme Kiti · Novera</title>
 <meta name="description" content="YeS-TR (Yeşil Sertifika) bina ve yerleşme ölçeği ön değerlendirme, skorlama, kanıt takibi ve rapor aracı.">
 <!-- Önbellek: her yayında ?v= değeri artırılır, tarayıcı eski dosyaları yeni sayfayla karıştırmaz -->
-<link rel="stylesheet" href="assets/css/style.css?v=20261012-36">
+<link rel="stylesheet" href="assets/css/style.css?v=20261014-46">
 </head>
 <body>
 <div id="app">
@@ -34,9 +34,9 @@
           <div><label class="f" for="s_kurum">Kurum</label><input id="s_kurum" placeholder="Yapı sahibi / idare"></div>
           <div><label class="f" for="s_yesu">YESU</label><input id="s_yesu" placeholder="Yeşil Sertifika Uzmanı"></div>
           <div><label class="f" for="s_tarih">Tarih</label><input type="date" id="s_tarih"></div>
-          <div><label class="f" for="s_ols">Ölçek</label><select id="s_ols"><option value="B">Bina</option><option value="Y">Yerleşme</option></select></div>
-          <div id="s_tipd"><label class="f" for="s_tip">Bina tipi</label><select id="s_tip"></select></div>
-          <div><label class="f" for="s_dur">Yeni / Mevcut</label><select id="s_dur"><option value="Y">Yeni</option><option value="M">Mevcut</option></select></div>
+          <div><label class="f" for="s_ols">Ölçek</label><select id="s_ols"><option value="B">Bina</option><option value="Y">Yerleşme</option></select><div class="note fh" data-help="ols"></div></div>
+          <div id="s_tipd"><label class="f" for="s_tip">Bina tipi</label><select id="s_tip"></select><div class="note fh" data-help="tip"></div></div>
+          <div><label class="f" for="s_dur">Yeni / Mevcut</label><select id="s_dur"><option value="Y">Yeni</option><option value="M">Mevcut</option></select><div class="note fh" data-help="dur"></div></div>
           <div class="w2"><label class="f" for="s_hdf">Hedef sertifika derecesi</label><select id="s_hdf"></select></div>
         </div>
         <div class="note err" id="s_err" hidden style="margin-top:8px">Lütfen proje adını girin.</div>
@@ -86,8 +86,8 @@
           <div><label class="f">YESU</label><input data-i="yesu"></div>
           <div><label class="f">Tarih</label><input type="date" data-i="tarih"></div>
           <div><label class="f">Ölçek</label><select id="ols"><option value="B">Bina</option><option value="Y">Yerleşme</option></select></div>
-          <div id="tipd"><label class="f">Bina tipi</label><select id="tip"></select></div>
-          <div><label class="f">Yeni / Mevcut</label><select id="dur"><option value="Y">Yeni</option><option value="M">Mevcut</option></select></div>
+          <div id="tipd"><label class="f">Bina tipi</label><select id="tip"></select><div class="note fh" data-help="tip"></div></div>
+          <div><label class="f">Yeni / Mevcut</label><select id="dur"><option value="Y">Yeni</option><option value="M">Mevcut</option></select><div class="note fh" data-help="dur"></div></div>
           <div class="w2"><label class="f">Hedef sertifika derecesi</label><select id="hdf"></select></div>
         </div>
         <div class="pa"><button id="pd" title="Bu projenin kopyasını oluştur (kanıt dosyaları hariç)">Projeyi Kopyala</button></div>
@@ -111,20 +111,34 @@
         <div id="pendn" class="note" style="margin-top:6px">Sonlandırılan proje açılış sayfasında “Biten Projeler” sekmesine taşınır.</div>
         <div class="note" style="margin-top:4px">Silinen proje 7 gün “Silinen Projeler” sekmesinde bekler; bu sürede geri yüklenebilir, sonra kanıt dosyalarıyla birlikte kalıcı olarak silinir.</div>
       </div>
+      <!-- Kılavuz PDF butonu: yazı ve PDF projenin ölçeğine göre (ui.js update) -->
+      <div class="card" id="kilc">
+        <button id="kilb" class="rp alt">YeS TR Bina Değerlendirme Kılavuzu</button>
+      </div>
     </aside>
   </div>
   </div>
 </div>
 
-<script src="assets/js/data.js?v=20261012-36"></script>
-<script src="assets/js/guide.js?v=20261012-36"></script>
-<script src="assets/js/engine.js?v=20261012-36"></script>
-<script src="assets/js/storage.js?v=20261012-36"></script>
-<script src="assets/js/charts.js?v=20261012-36"></script>
-<script src="assets/js/report.js?v=20261012-36"></script>
-<script src="assets/js/orgchart.js?v=20261012-36"></script>
-<script src="assets/js/ui.js?v=20261012-36"></script>
-<script src="assets/js/repinfo.js?v=20261012-36"></script>
+<!-- Kılavuz PDF açılır penceresi (sağ paneldeki kılavuz butonu) -->
+<div id="pdfm" class="pdfm" hidden>
+  <div class="pdfb" role="dialog" aria-modal="true" aria-labelledby="pdft">
+    <div class="pdfh"><b id="pdft">YeS TR Bina Değerlendirme Kılavuzu</b>
+      <a id="pdfo" href="assets/docs/yestr-bina-kilavuz.pdf" target="_blank" rel="noopener">Yeni sekmede aç</a>
+      <button id="pdfx" type="button" title="Kapat (Esc)">✕</button></div>
+    <iframe id="pdff" title="Değerlendirme kılavuzu"></iframe>
+  </div>
+</div>
+<script src="assets/js/data.js?v=20261014-46"></script>
+<script src="assets/js/guide.js?v=20261014-46"></script>
+<script src="assets/js/guide-y.js?v=20261014-46"></script>
+<script src="assets/js/engine.js?v=20261014-46"></script>
+<script src="assets/js/storage.js?v=20261014-46"></script>
+<script src="assets/js/charts.js?v=20261014-46"></script>
+<script src="assets/js/report.js?v=20261014-46"></script>
+<script src="assets/js/orgchart.js?v=20261014-46"></script>
+<script src="assets/js/ui.js?v=20261014-46"></script>
+<script src="assets/js/repinfo.js?v=20261014-46"></script>
 <script>load(); purgeDeleted(); route();</script>
 </body>
 </html>

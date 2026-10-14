@@ -12,13 +12,22 @@ const THOPEN = {};        // açık tema başlıkları
 let sugOpen = false;      // öneri listesi açık mı
 document.addEventListener('toggle', e => { if (e.target.id === 'sg') sugOpen = e.target.open; }, true);
 
-const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.dwg,.dxf,.zip,.rar,.txt,.csv,image/*';
+// Buton yazıları: her kelimenin baş harfi büyük; bağlaçlar küçük (ilk kelime hariç).
+// Tire ve eğik çizgiyle bağlı parçalar da ayrı kelime sayılır; tamamı büyük harfli kısaltmalar (İSG) korunur.
+const BAGLAC = new Set(['ve', 'ile', 'veya', 'ya', 'da', 'de', 'ki', 'ama', 'fakat', 'hem', 'ne', 'yahut']);
+const basHarf = s => s.split(/(\s+|-|\/)/).map((w, i) => {
+  if (!/\p{L}/u.test(w) || (w === w.toLocaleUpperCase('tr-TR') && w.length > 1)) return w;
+  const lw = w.toLocaleLowerCase('tr-TR');
+  return i > 0 && BAGLAC.has(lw) ? lw : lw.charAt(0).toLocaleUpperCase('tr-TR') + lw.slice(1);
+}).join('');
+
+const ACCEPT ='.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.dwg,.dxf,.zip,.rar,.txt,.csv,image/*';
 
 // ---- Kriter satırı
 function row(c) {
   const id = c.id, z = isMandatory(c, S), m = maxCredit(c, S), e = earnableCredit(c, S), v = S.v[id] ?? '';
   const stage = c.s ? `<span class="st">${STAGES[c.s]}</span>` : '';
-  const G = typeof CRIT_GUIDE !== 'undefined' && CRIT_GUIDE[id];
+  const G = guideOf(c);
   const req = G ? guideBlock(c) : c.r ? `<details class="rq"><summary>Gereklilik</summary>${esc(c.r)}</details>` : '';
   const evid = ['Yok', 'Hazırlanıyor', 'Tamam'].map(x => `<option ${(S.e[id] || 'Yok') == x ? 'selected' : ''}>${x}</option>`).join('');
   const zLabel = c.zg ? `Zorunlu (${GRADES[c.zg]} ve üstü)` : 'Zorunlu';
@@ -42,7 +51,7 @@ function row(c) {
   ${tableOn(id, S) ? `<div class="ctab" data-ct="${id}">${critTable(id)}</div>` : ''}
   ${hasOrg(id, S) ? `<div class="ctab orgc" data-orgc="${id}">${orgEditor(id)}</div>` : ''}
   <div class="ev">
-    <label class="up" title="PDF, Word, Excel, görsel, DWG vb. Dosyaları bu satırın üzerine sürükleyip de bırakabilirsiniz.">📎 ${esc((G && G.kanit) || 'Kanıt dosyası ekle')}<input type="file" multiple accept="${ACCEPT}" data-a="up" hidden></label>
+    <label class="up" title="PDF, Word, Excel, görsel, DWG vb. Dosyaları bu satırın üzerine sürükleyip de bırakabilirsiniz.">📎 ${esc(basHarf((G && G.kanit) || 'Kanıt dosyası ekle'))}<input type="file" multiple accept="${ACCEPT}" data-a="up" hidden></label>
     <span class="note">veya dosyayı buraya sürükleyin</span>
   </div>
   <div class="fls" data-t="${id}"></div>
@@ -51,13 +60,15 @@ function row(c) {
 
 // ---- Kılavuzu tanımlı kriterler (guide.js): gereklilik listesi + otomatik kredi
 // Durum kutusu: uygulanmaz / zorunlu şart / kredi
-const guideOk = c => guideReqs(c, S).length && (guideOf(c).kural === 'mandatory' ? guideMet(c, S) : givenCredit(c, S) > 0 && (!isMandatory(c, S) || guideMet(c, S)));
+// Yalnızca zorunlu (kredisi yok): kural 'mandatory' ya da zorunlu olup bu projede kazanılabilir kredisi olmayan kriter (ör. KET 05 K2 yeni)
+const zOnly = c => guideOf(c).kural === 'mandatory' || (isMandatory(c, S) && !earnableCredit(c, S));
+const guideOk = c => guideReqs(c, S).length && (zOnly(c) ? guideZMet(c, S) : givenCredit(c, S) > 0 && (!isMandatory(c, S) || guideZMet(c, S)));
 function guideCreditText(c) {
-  if (!guideReqs(c, S).length) return `Uygulanmaz <small>(${DURUM_AD[S.durum]} binalar için)</small>`;
-  if (guideOf(c).kural === 'mandatory') return guideMet(c, S) ? '✓ Zorunlu şart sağlandı' : 'Zorunlu şart sağlanmadı <small>(gerekliliği işaretleyin)</small>';
+  if (!guideReqs(c, S).length) return `Uygulanmaz <small>(${DURUM_AD[S.durum]} ${birimAd(1)} için)</small>`;
+  if (zOnly(c)) return guideZMet(c, S) ? '✓ Zorunlu şart sağlandı' : 'Zorunlu şart sağlanmadı <small>(gerekliliği işaretleyin)</small>';
   const m = earnableCredit(c, S), got = givenCredit(c, S);
   // Kredisi de olan zorunlu kriter (ör. İOK 03 K1 eğitim / sağlık, İOK 04 K1 konut dışı)
-  const zs = isMandatory(c, S) ? (guideMet(c, S) ? ' · zorunlu şart ✓' : ' · zorunlu şart sağlanmadı') : '';
+  const zs = isMandatory(c, S) ? (guideZMet(c, S) ? ' · zorunlu şart ✓' : ' · zorunlu şart sağlanmadı') : '';
   return `${got ? '✓ ' : ''}Kredi: ${num(got)} / ${num(m)}${zs} <small>(gerekliliklere göre otomatik)</small>`;
 }
 function guideBlock(c) {
@@ -67,18 +78,18 @@ function guideBlock(c) {
     S.g = S.g || {}; S.g[c.id] = {}; guideReqs(c, S).forEach(g => S.g[c.id][g.no] = true);
   }
   if (!guideReqs(c, S).length) {
-    return `<div class="gl na"><div class="glt">Gereklilikler · ${dn} bina</div><div class="gq">Bu kriter ${dn} binalar için uygulanmaz.</div></div>`;
+    return `<div class="gl na"><div class="glt">Gereklilikler · ${dn} ${birimAd()}</div><div class="gq">Bu kriter ${dn} ${birimAd(1)} için uygulanmaz.</div></div>`;
   }
   const items = G.gerek.filter(g => gTip(g, S)).map(g => { // başka bina tiplerine ait gereklilikler gösterilmez
     const on = g.durum.includes(S.durum);
-    const forWhom = g.durum.length === 1 ? ` <small>· ${DURUM_AD[g.durum[0]]} binalar için</small>` : '';
+    const forWhom = g.durum.length === 1 ? ` <small>· ${DURUM_AD[g.durum[0]]} ${birimAd(1)} için</small>` : '';
     if (g.head) return `<div class="gq gh ${on ? '' : 'na'}"><span><b>(${g.no})</b> ${esc(g.text)}${forWhom}</span></div>`; // işaretlenmeyen başlık
     const sub = g.sub ? ' sub' : '';
     return on
       ? `<label class="chk gq${sub}"><input type="checkbox" data-gq="${g.no}" ${guideChecked(c, S, g.no) ? 'checked' : ''}> <span><b>(${g.no})</b> ${esc(g.text)}${forWhom}</span></label>`
       : `<div class="gq na${sub}"><span><b>(${g.no})</b> ${esc(g.text)}${forWhom}</span></div>`;
   }).join('');
-  return `<div class="gl"><div class="glt">Gereklilikler · ${dn} bina</div>${G.not ? `<div class="note gn">${esc(G.not)}</div>` : ''}${items}
+  return `<div class="gl"><div class="glt">Gereklilikler · ${dn} ${birimAd()}</div>${G.not ? `<div class="note gn">${esc(G.not)}</div>` : ''}${items}
       ${G.kural === 'hesap' ? guideInputsHtml(c) : ''}
       <div class="note">${esc(G.kuralText)}</div></div>`;
 }
@@ -86,6 +97,13 @@ function guideBlock(c) {
 function guideInputsHtml(c) {
   const v = gvOf(c, S);
   const field = f => {
+    if (f.t === 'f246') return f246Html(v, f.l);
+    if (f.t === 'grid') { // satır × sütun tablo: anahtar = k_satır_sütun
+      const cell = (r, cc) => { const key = `${f.k}_${r}_${cc}`; return `<td><input type="text" inputmode="decimal" data-gv="${key}" value="${esc(v[key] ?? '')}"></td>`; };
+      return `<div class="gin grid"><span>${esc(f.l)}${f.ipucu ? ` <small>(${esc(f.ipucu)})</small>` : ''}</span><div class="ggrid"><table>
+        <tr><th></th>${f.cols.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr>
+        ${f.rows.map(([r, l]) => `<tr><th>${esc(l)}</th>${f.cols.map(([cc]) => cell(r, cc)).join('')}</tr>`).join('')}</table></div></div>`;
+    }
     const val = v[f.k] ?? '', unit = f.birim ? `<small>${esc(f.birim)}</small>` : '';
     const ctl = f.t === 'sel'
       ? `<select data-gv="${f.k}">${f.opts.map(([o, l]) => `<option value="${esc(o)}" ${val === o ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`
@@ -95,15 +113,44 @@ function guideInputsHtml(c) {
   return `<div class="gins">${guideInputs(c, S).map(field).join('')}</div>
       <div class="ghr" data-gh="${c.id}">${esc(guideCalc(c, S).text)}</div>`;
 }
+// Tablo 2.4.6 Bina Enerji Tüketimi Değerlendirme Raporu (EKV 01 K2, mevcut binalar)
+function f246Html(v, title) {
+  const inp = key => `<input type="text" inputmode="decimal" data-gv="${key}" value="${esc(v[key] ?? '')}">`;
+  const sel = key => `<select data-gv="${key}">${EKB_SINIF.map(([o, l]) => `<option value="${o}" ${(v[key] || '') === o ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const body = F246_ROWS.map(([r, l]) => {
+    const strong = r === 'ara' || r === 'net';
+    const en = F246_EN.map(([c]) => r === 'ara' ? `<td class="fc" data-f246c="ara_${c}">${f246Cell(v, `ara_${c}`)}</td>` : `<td>${inp(`f246_${r}_${c}`)}</td>`).join('');
+    const sg = r === 'net' ? F246_SG.map(([c]) => `<td>${inp(`f246_net_${c}`)}</td>`).join('') : '<td class="fx"></td><td class="fx"></td>';
+    return `<tr${strong ? ' class="fs"' : ''}><th>${l}</th>${en}${sg}</tr>`;
+  }).join('');
+  return `<div class="gin grid f246"><span>${esc(title)} <small>(enerji kWh/m².yıl · sera gazı kg eşd./m².yıl)</small></span><div class="ggrid"><table>
+    <tr><th rowspan="2"></th><th colspan="4" class="fh2">ENERJİ</th><th colspan="2" class="fh2">CO₂ SALINIMI</th></tr>
+    <tr>${F246_EN.map(([, b, k]) => `<th>${b}<br><small>${k}</small></th>`).join('')}${F246_SG.map(([, b]) => `<th>${b}<br><small>Sera gazı emisyonu</small></th>`).join('')}</tr>
+    ${body}
+    <tr class="fs"><th>ENERJİ KİMLİK BELGESİ SINIFI</th><td colspan="2">${sel('f246_sinif_ab')}</td><td colspan="2">${sel('f246_sinif_kb')}</td><td colspan="2" class="fx"></td></tr>
+    <tr class="fs"><th>İYİLEŞTİRME ORANI (%)</th><td colspan="4" class="fc" data-f246c="iyi_e">${f246Cell(v, 'iyi_e')}</td><td colspan="2" class="fc" data-f246c="iyi_s">${f246Cell(v, 'iyi_s')}</td></tr>
+  </table></div><div class="note">Kıyaslanan bina: mevcut binanın iyileştirme yapılmadan önceki hali. ARA TOPLAM ve İYİLEŞTİRME ORANI kendiliğinden hesaplanır; ekine kıyaslanan bina için oluşturulan Enerji Kimlik Belgesi eklenir.</div></div>`;
+}
+// Hesaplanan hücre metni (ARA TOPLAM sütunu ya da iyileştirme oranı)
+function f246Cell(v, k) {
+  if (k.startsWith('ara_')) { const x = f246Ara(v, k.slice(4)); return isNaN(x) ? '' : fmtN(x); }
+  const f = f246Vals(v);
+  return f.ok ? (k === 'iyi_e' ? 'Enerji: ' + pct(f.E) : 'Sera gazı: ' + pct(f.S)) : '';
+}
+// Yazarken hesaplanan hücreleri günceller
+function f246Refresh(root, v) {
+  if (root) root.querySelectorAll('[data-f246c]').forEach(td => { td.textContent = f246Cell(v, td.dataset.f246c); });
+}
 document.addEventListener('input', e => {
   const t = e.target;
   if (!t.dataset || t.dataset.gv === undefined) return;
   const id = t.closest('.r').dataset.id, c = D.crit.find(x => x.id === id);
   S.gv = S.gv || {};
   (S.gv[id] = S.gv[id] || {})[t.dataset.gv] = t.value;
+  f246Refresh(t.closest('.f246'), S.gv[id]);
   const h = document.querySelector(`[data-gh="${id}"]`);
   if (h) h.textContent = guideCalc(c, S).text;
-  if (isMandatory(c, S)) S.z[id] = guideMet(c, S);
+  if (isMandatory(c, S)) S.z[id] = guideZMet(c, S);
   const pill = document.querySelector(`[data-gc="${id}"]`);
   if (pill) { pill.innerHTML = guideCreditText(c); pill.classList.toggle('ok', !!guideOk(c)); }
   update();
@@ -123,7 +170,7 @@ document.addEventListener('change', e => {
     chain.forEach((x, i) => { if (t.checked ? i < ti : i > ti) S.g[id][x.no] = t.checked; });
     t.closest('.gl').querySelectorAll('[data-gq]').forEach(b => { b.checked = !!S.g[id][b.dataset.gq]; });
   }
-  if (G.kural === 'mandatory' || isMandatory(c, S)) S.z[id] = guideMet(c, S); // zorunlu şart işaretlerden
+  if (G.kural === 'mandatory' || isMandatory(c, S)) S.z[id] = guideZMet(c, S); // zorunlu şart işaretlerden
   const pill = document.querySelector(`[data-gc="${id}"]`);
   if (pill) { pill.innerHTML = guideCreditText(c); pill.classList.toggle('ok', !!guideOk(c)); }
   update();
@@ -219,6 +266,55 @@ const svgIcon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 const ICON_OK = svgIcon('<path class="i-ok" d="M5 12.5l4.5 4.5L19 7.5"/>');
 const ICON_NO = svgIcon('<path class="i-no" d="M12 6.5v7M12 18h.01"/>');
 
+// ---- Kılavuz PDF açılır penceresi: projenin ölçeğine göre bina ya da yerleşme kılavuzu (buton yazısı update() içinde)
+const KILAVUZ = {
+  B: { ad: 'YeS TR Bina Değerlendirme Kılavuzu', pdf: 'assets/docs/yestr-bina-kilavuz.pdf' },
+  Y: { ad: 'YeS TR Yerleşme Değerlendirme Kılavuzu', pdf: 'assets/docs/yestr-yerlesme-kilavuz.pdf' }
+};
+const kilavuz = () => KILAVUZ[D.scale] || KILAVUZ.B;
+function pdfOpen() {
+  const f = $('#pdff'), k = kilavuz();
+  $('#pdft').textContent = k.ad; $('#pdfo').href = k.pdf;
+  if (f.getAttribute('src') !== k.pdf) f.src = k.pdf; // ilk açılışta ya da ölçek değişince yüklenir
+  $('#pdfm').hidden = false; document.body.classList.add('pdfopen');
+  $('#pdfx').focus();
+}
+function pdfClose() { $('#pdfm').hidden = true; document.body.classList.remove('pdfopen'); }
+$('#kilb').onclick = pdfOpen;
+$('#pdfx').onclick = pdfClose;
+$('#pdfm').addEventListener('click', e => { if (e.target.id === 'pdfm') pdfClose(); }); // pencere dışına tıklayınca kapanır
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#pdfm').hidden) pdfClose(); });
+
+// Seçim kutusu açıklamaları (kılavuz 1.2 Kapsam ve 1.3 Tanımlar)
+const TIP_HELP = [
+  'Müstakil konut, apartman, yüksek nitelikli konut (rezidans).',
+  'Büro, kamu hizmet binaları, iş merkezleri, ar-ge binaları.',
+  'Okul öncesi, ilk ve orta öğretim ile yüksek öğretime hizmet veren eğitim kampüsü; genel, mesleki ve teknik eğitim amaçlı okul, kurs vb. binalar.',
+  'Otel, motel, tatil köyü, pansiyon, apart otel veya hostel gibi turizm amaçlı konaklama binaları.',
+  'Hastane, sağlık ocağı, aile sağlık merkezi, doğumevi, dispanser ve poliklinik, ağız ve diş sağlığı merkezi, fizik tedavi ve rehabilitasyon merkezi, entegre sağlık kampüsü.',
+  'Çarşı, mağaza, lokanta, restoran, katlı otopark, alışveriş merkezi, banka, finans kurumları gibi ticaret ve hizmet binaları.',
+  'Sanayi alanlarında üretim yapılan binalar; sinema, tiyatro, müze, kütüphane, sergi salonu, kongre merkezi, spor salonu; gazino, düğün salonu; yurt, yemekhane, bakımevleri, rehabilitasyon merkezi, sığınma evleri; altyapı ve ulaşım tesisleri, veri merkezleri vb. Sanayi binalarında İOK (görsel ve ısıl konfor) ile EKV için yalnızca idari bölümler değerlendirilir.'
+];
+const OLS_HELP = { B: 'Yeni veya mevcut tek bina.', Y: 'İçerisinde birden fazla bina bulunan imar parseli ve daha büyük ölçekteki alanlar.' };
+const DUR_HELP = {
+  B: { Y: 'Yapı kullanma izin belgesi henüz bulunmayan bina.', M: 'Yapı kullanma izin belgesi bulunan bina.' },
+  Y: { Y: 'Yapı kullanma izin belgesine sahip bina bulunmayan yerleşme.', M: 'İçerisinde yapı kullanma izin belgesine sahip en az bir bina bulunan yerleşme.' }
+};
+// Her açıklama kutusu, aynı alandaki seçim kutusunun değerine ve ölçeğe göre güncellenir
+function updHelp() {
+  document.querySelectorAll('[data-help]').forEach(el => {
+    const sel = el.parentElement.querySelector('select');
+    const olsSel = el.closest('#sf') ? $('#s_ols') : $('#ols'), sc = olsSel ? olsSel.value : (S.olcek || 'B');
+    const k = el.dataset.help, v = sel ? sel.value : '';
+    el.textContent = k === 'tip' ? (TIP_HELP[+v] || '') : k === 'ols' ? OLS_HELP[v] || '' : (DUR_HELP[sc] || DUR_HELP.B)[v] || '';
+  });
+}
+document.addEventListener('change', e => { if (e.target.matches && e.target.matches('#s_ols, #s_tip, #s_dur, #ols, #tip, #dur')) updHelp(); });
+
+// Modül paneli: başvuru dosyasını hazırlayan / değerlendiren meslek grupları (kılavuz Bölüm 3)
+const expertsHtml = m => modExperts(m) ? `<details class="mex"><summary>Modülü Değerlendirebilen Uzmanlar</summary>
+  <div>${esc(modExperts(m))}.</div></details>` : '';
+
 // Modüller 6 kutu olarak gösterilir; seçili modülün kriterleri altta listelenir.
 function renderMods() {
   if (ACTIVE >= D.mods.length) ACTIVE = 0;
@@ -238,7 +334,7 @@ function renderMods() {
   }).join('');
   if (!h) h = '<div class="note" style="padding:12px">Seçili aşamada bu modüle ait kriter yok.</div>';
   const tools = themes.length ? '<span class="tga"><button data-fold="1">Tümünü aç</button><button data-fold="0">Tümünü kapat</button></span>' : '';
-  $('#mods').innerHTML = `<div class="mp${modClass(D.mods[ACTIVE])}"${modStyle(D.mods[ACTIVE])}><div class="mph"><b>${D.mods[ACTIVE]} · ${esc(moduleName(ACTIVE))}</b><span id="mph"></span>${tools}</div>${h}</div>`;
+  $('#mods').innerHTML = `<div class="mp${modClass(D.mods[ACTIVE])}"${modStyle(D.mods[ACTIVE])}><div class="mph"><b>${D.mods[ACTIVE]} · ${esc(moduleName(ACTIVE))}</b><span id="mph"></span>${tools}</div>${expertsHtml(D.mods[ACTIVE])}${h}</div>`;
 }
 
 // Tema başlıklarının özetleri: kriter sayısı, kazanılan/azami kredi, eksik zorunlu
@@ -357,6 +453,7 @@ window.addEventListener('dragover', e => e.preventDefault());
 // ---- Özet paneli (sağda sabit)
 function update() {
   const R = calc(S), g = S.hedef;
+  $('#kilb').textContent = kilavuz().ad; // kılavuz PDF butonu: projenin ölçeğine göre
   R.mods.forEach((x, i) => {
     const e = $('#mh' + i), b = $('#mb' + i), d = $('#md' + i);
     if (e) e.textContent = `${num(x.raw)}/${num(x.max)} kredi · ${f2(x.wc)}`;
@@ -365,23 +462,24 @@ function update() {
   });
   const am = R.mods[ACTIVE], mph = $('#mph');
   themeStats();
-  if (mph && am) mph.textContent = `Ağırlık %${num(am.w * 100)} · ${num(am.raw)}/${num(am.max)} kredi · ağırlıklı ${f2(am.wc)}${ACTIVE < 5 ? (am.min ? ` · ${GRADES[g]} şartı ≥ ${am.min[g]}` : ' · tema kapsam şartı') : ' · toplama dahil değil'}`;
+  if (mph && am) mph.textContent = `Ağırlık %${num(am.w * 100)} · ${num(am.raw)}/${num(am.max)} kredi · ağırlıklı ${f2(am.wc)}${ACTIVE < 5 ? (am.min ? ` · ${GRADES[g]} şartı ≥ ${am.min[g]}` : ' · tema kapsam şartı') : ' · toplama bonus olarak eklenir'}`;
 
   const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : 'no'}">${t}</span>`;
   const gradeTxt = R.grade < 0 ? 'Derece alınamadı' : GRADES[R.grade];
   let h = `<div class="big"><div class="score">${f2(R.total)}</div><span class="badge">${gradeTxt}</span></div>
-  <div class="note sline"><span>Toplam ağırlıklı kredi (İNO hariç)</span><span>Hedef: <b>${GRADES[g]}</b> (≥ ${D.th[g]})</span></div><div class="chips">`;
+  <div class="note sline"><span>Toplam ağırlıklı kredi (İNO bonusu dahil)</span><span>Hedef: <b>${GRADES[g]}</b> (≥ ${D.th[g]})</span></div><div class="chips">`;
   h += chip(R.total + EPS >= D.th[g], `Toplam ${f2(R.total)} / ${D.th[g]}`);
   R.mods.slice(0, 5).forEach(x => h += chip(x.met[g], x.min ? `${x.m} ${f2(x.wc)} / ${x.min[g]}` : `${x.m} kapsam şartı`));
   h += chip(!R.miss.length, R.miss.length ? `Eksik zorunlu: ${R.miss.length}` : 'Zorunlular tamam') + '</div>';
   if (R.miss.length) h += `<div class="note" style="margin-top:6px">${R.miss.join(', ')}</div>`;
+  if (D.scale === 'Y' && !R.bolOk) h += `<div class="note" style="margin-top:6px">⚠ Başvuru belgesi için BOL modülünden ${num(R.bolNeed)} ağırlıklı kredi (BOL’un tamamı) gerekir; şu an ${f2(R.mods[0].wc)}.</div>`;
 
   const SG = suggest(S, R, g), list = SG.items.slice(0, 12);
   if (list.length) h += `<details id="sg" class="sg sec" ${sugOpen ? 'open' : ''}><summary>Hedefe ulaşmak için öneriler (${SG.items.length})</summary>${list.map(s =>
     `<div class="it"><b>${s.c.c}</b> ${esc(s.c.n.slice(0, 70))} · ${s.why}${s.gain ? ` · +${f2(s.gain)}` : ''}${s.c.s ? ' · ' + STAGES[s.c.s] : ''}</div>`).join('')}</details>`;
 
   const ino = R.mods[5];
-  h += `<div class="note sec">İnovasyon: ${f2(ino.wc)} / ${f2(ino.max * ino.w)} (toplama dahil değil)</div>`;
+  h += `<div class="note sec">İnovasyon bonusu: ${f2(ino.wc)} / ${f2(ino.max * ino.w)} (toplama eklendi)</div>`;
 
   let done = 0, total = 0;
   D.crit.forEach(c => {
@@ -421,7 +519,7 @@ function init() {
   $('#tipd').hidden = yer;
   $('#fld').hidden = yer;
   $('#hsub').textContent = `${yer ? 'Yerleşme' : 'Bina'} ölçeği · Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir`;
-  $('#tip').value = S.tip; $('#dur').value = S.durum; $('#hdf').value = S.hedef;
+  $('#tip').value = S.tip; $('#dur').value = S.durum; $('#hdf').value = S.hedef; updHelp();
   document.querySelectorAll('[data-i]').forEach(e => e.value = S.info[e.dataset.i] || '');
   drawFilter(); renderMods(); update();
   migrateImgs(S).then(moved => { if (moved) { renderMods(); update(); } });
@@ -670,7 +768,7 @@ function drawStart(edit, mode = 'full') {
     $('#s_tarih').value = new Date().toISOString().slice(0, 10);
     RF = repBlank();
   }
-  $('#s_tipd').hidden = $('#s_ols').value === 'Y';
+  $('#s_tipd').hidden = $('#s_ols').value === 'Y'; updHelp();
   renderRepForm(edit);
   if (edit && PENDING_GROUP) {
     // Sağ paneldeki karttan seçilen grup açık gelir
