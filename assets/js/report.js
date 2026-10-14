@@ -265,7 +265,6 @@ kids.push(h1('7. KRİTER BAZLI DETAYLI DEĞERLENDİRME'),
 let sec=0;
 idx.forEach(i=>{const m=D.mods[i];sec++;
  kids.push(h2(`7.${sec} ${m} · ${MN[m]}`),para(MA[m],{it:true,color:MUT}));
- if(modExperts(m))kids.push(para([run("Başvuru dosyasını hazırlayan (YESUM): ",{bold:true,size:17}),run(YESUM_TXT+".",{size:17}),run("  Raporu değerlendiren (YESDUM): ",{bold:true,size:17}),run(modExperts(m)+".",{size:17})],{a:80}));
  let th='';
  crit(i).forEach(c=>{if(c.t!==th){th=c.t;kids.push(h3(th))}
   kids.push(new Table({width:{size:W,type:WidthType.DXA},columnWidths:[2300,2300,2300,2738],rows:[

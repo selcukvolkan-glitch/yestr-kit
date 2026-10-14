@@ -49,8 +49,7 @@ const MOD_COLORS = {
 const modStyle = m => MOD_COLORS[m] ? ` style="--mc:${MOD_COLORS[m].dark};--ml:${MOD_COLORS[m].light}"` : '';
 const modClass = m => MOD_COLORS[m] ? ' mc' : '';
 
-// Başvuru dosyasını hazırlayan (YESUM) ve raporu değerlendiren (YESDUM) meslek grupları (kılavuz Bölüm 3)
-const YESUM_TXT = '4 yıllık lisans öğrenimini tamamlayan üniversite mezunu';
+// Modülü değerlendirebilen uzmanlar (YESDUM meslek grupları, kılavuz Bölüm 3); sitede modül panelinde gösterilir
 const MOD_EXPERTS = {
   B: {
     'BBT': 'Mimar, İnşaat Mühendisi, Makina Mühendisi, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, Elektronik ve Haberleşme Mühendisi',
