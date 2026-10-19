@@ -183,9 +183,6 @@ button:disabled { opacity: .6; cursor: default; }
 textarea { height: 90px; font: 12px monospace; }
 .rp { background: var(--ac); font-weight: 600; padding: 11px 16px; width: 100%; }
 
-.fl { display: flex; gap: 5px; flex-wrap: wrap; }
-.fl button { background: var(--cd); color: var(--pr); border: 1px solid var(--pr); font-size: 12px; padding: 4px 9px; }
-.fl button.on { background: var(--pr); color: #fff; }
 
 /* Modüller ve kriterler */
 /* Modül kutuları */
@@ -269,6 +266,11 @@ details.tg[open] > summary { background: var(--hl); }
 .tgn { font-size: 13px; font-weight: 600; color: var(--pr); text-transform: uppercase; }
 .tgs { margin-left: auto; font-size: 12px; color: var(--mu); }
 .tgz { color: var(--bad); font-weight: 600; }
+/* Alt modül raporu butonu (başlık satırında) */
+.tgr { background: var(--cd); color: var(--pr); border: 1px solid var(--bd); font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; cursor: pointer; }
+.tgr:hover { border-color: var(--pr); }
+.tgr:disabled { opacity: .5; cursor: wait; }
+.mp.mc .tgr { color: var(--mc); }
 /* Tamamlanmış tema: kapalıyken açık mavi */
 details.tg.done:not([open]) > summary { background: var(--done); }
 details.tg.done:not([open]) > summary:hover { filter: brightness(.97); }
@@ -347,10 +349,6 @@ body.pdfopen { overflow: hidden; }
 .f246 td.fx { background: var(--hl); }
 .f246 input { width: 72px; }
 /* Modül paneli: uzmanlık (YESUM / YESDUM) */
-.mex { font-size: 12px; color: var(--mu); padding: 6px 12px; border-bottom: 1px solid var(--bd); }
-.mex summary { cursor: pointer; font-weight: 600; }
-.mex div { margin-top: 3px; }
-.mp.mc .mex summary { color: var(--mc); }
 /* 'hesap' kuralı: değer giriş alanları */
 .gins { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 6px 12px; margin: 8px 0 4px; }
 .gin { display: flex; flex-direction: column; gap: 2px; font-size: 12px; min-width: 0; }
@@ -418,5 +416,5 @@ main, .side, .mp, details.tg, .r, .fls { min-width: 0; }
 @media print {
   .layout { display: block; }
   .side { position: static; }
-  .fl, #mini { display: none; }
+  #mini { display: none; }
 }

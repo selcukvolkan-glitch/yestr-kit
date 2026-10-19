@@ -46,7 +46,7 @@ function row(c) {
     ${G ? `<span class="gcr ${guideOk(c) ? 'ok' : ''}" data-gc="${id}">${guideCreditText(c)}</span>`
       : e ? `<input type="number" inputmode="decimal" min="0" max="${e}" step="any" data-a="v" value="${v}" placeholder="0"><button data-a="f">Tam</button>` : ''}
     <select data-a="e" title="Kanıt durumu">${evid}</select>
-    <input type="text" data-a="n" placeholder="Proje çözümü / not" value="${esc(S.n[id] || '')}">
+    <input type="text" data-a="n" placeholder="Açıklamalar" value="${esc(S.n[id] || '')}">
   </div>
   ${tableOn(id, S) ? `<div class="ctab" data-ct="${id}">${critTable(id)}</div>` : ''}
   ${hasOrg(id, S) ? `<div class="ctab orgc" data-orgc="${id}">${orgEditor(id)}</div>` : ''}
@@ -268,8 +268,8 @@ const ICON_NO = svgIcon('<path class="i-no" d="M12 6.5v7M12 18h.01"/>');
 
 // ---- Kılavuz PDF açılır penceresi: projenin ölçeğine göre bina ya da yerleşme kılavuzu (buton yazısı update() içinde)
 const KILAVUZ = {
-  B: { ad: 'YeS TR Bina Değerlendirme Kılavuzu', pdf: 'assets/docs/yestr-bina-kilavuz.pdf' },
-  Y: { ad: 'YeS TR Yerleşme Değerlendirme Kılavuzu', pdf: 'assets/docs/yestr-yerlesme-kilavuz.pdf' }
+  B: { ad: 'YeS-TR Bina Değerlendirme Kılavuzu', pdf: 'assets/docs/yestr-bina-kilavuz.pdf' },
+  Y: { ad: 'YeS-TR Yerleşme Değerlendirme Kılavuzu', pdf: 'assets/docs/yestr-yerlesme-kilavuz.pdf' }
 };
 const kilavuz = () => KILAVUZ[D.scale] || KILAVUZ.B;
 function pdfOpen() {
@@ -311,10 +311,6 @@ function updHelp() {
 }
 document.addEventListener('change', e => { if (e.target.matches && e.target.matches('#s_ols, #s_tip, #s_dur, #ols, #tip, #dur')) updHelp(); });
 
-// Modül paneli: başvuru dosyasını hazırlayan / değerlendiren meslek grupları (kılavuz Bölüm 3)
-const expertsHtml = m => modExperts(m) ? `<details class="mex"><summary>Modülü Değerlendirebilen Uzmanlar</summary>
-  <div>${esc(modExperts(m))}.</div></details>` : '';
-
 // Modüller 6 kutu olarak gösterilir; seçili modülün kriterleri altta listelenir.
 function renderMods() {
   if (ACTIVE >= D.mods.length) ACTIVE = 0;
@@ -325,16 +321,16 @@ function renderMods() {
     <span class="ts" id="mh${i}"></span>
     <span class="pb"><i id="mb${i}"></i></span>
   </button>`).join('');
-  const list = D.crit.filter(c => c.m === ACTIVE && (!S.a || c.s === S.a));
+  const list = D.crit.filter(c => c.m === ACTIVE);
   const themes = [...new Set(list.map(c => c.t))];
   // Her tema açılır-kapanır başlık olarak gösterilir
   let h = themes.map(t => {
     const rows = list.filter(c => c.t === t).map(row).join('');
-    return `<details class="tg" data-th="${esc(t)}" ${THOPEN[t] ? 'open' : ''}><summary><span class="tgn">${esc(t)}</span><span class="tgs" data-ts="${esc(t)}"></span></summary>${rows}</details>`;
+    return `<details class="tg" data-th="${esc(t)}" ${THOPEN[t] ? 'open' : ''}><summary><span class="tgn">${esc(t)}</span><span class="tgs" data-ts="${esc(t)}"></span><button type="button" class="tgr" data-altrep="${esc(t)}" title="Bu alt modülün raporunu indir (.docx)">Rapor</button></summary>${rows}</details>`;
   }).join('');
   if (!h) h = '<div class="note" style="padding:12px">Seçili aşamada bu modüle ait kriter yok.</div>';
   const tools = themes.length ? '<span class="tga"><button data-fold="1">Tümünü aç</button><button data-fold="0">Tümünü kapat</button></span>' : '';
-  $('#mods').innerHTML = `<div class="mp${modClass(D.mods[ACTIVE])}"${modStyle(D.mods[ACTIVE])}><div class="mph"><b>${D.mods[ACTIVE]} · ${esc(moduleName(ACTIVE))}</b><span id="mph"></span>${tools}</div>${expertsHtml(D.mods[ACTIVE])}${h}</div>`;
+  $('#mods').innerHTML = `<div class="mp${modClass(D.mods[ACTIVE])}"${modStyle(D.mods[ACTIVE])}><div class="mph"><b>${D.mods[ACTIVE]} · ${esc(moduleName(ACTIVE))}</b><span id="mph"></span>${tools}</div>${h}</div>`;
 }
 
 // Tema başlıklarının özetleri: kriter sayısı, kazanılan/azami kredi, eksik zorunlu
@@ -517,15 +513,12 @@ function init() {
   $('#hdf').innerHTML = GRADES.map((t, i) => `<option value="${i}">${t}</option>`).join('');
   $('#ols').value = S.olcek || 'B';
   $('#tipd').hidden = yer;
-  $('#fld').hidden = yer;
   $('#hsub').textContent = `${yer ? 'Yerleşme' : 'Bina'} ölçeği · Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir`;
   $('#tip').value = S.tip; $('#dur').value = S.durum; $('#hdf').value = S.hedef; updHelp();
   document.querySelectorAll('[data-i]').forEach(e => e.value = S.info[e.dataset.i] || '');
-  drawFilter(); renderMods(); update();
+  renderMods(); update();
   migrateImgs(S).then(moved => { if (moved) { renderMods(); update(); } });
 }
-
-function drawFilter() { $('#fl').innerHTML = STAGES.map((x, i) => `<button data-f="${i}" class="${S.a == i ? 'on' : ''}">${x}</button>`).join(''); }
 
 function grpFix(c, id) {
   // Seçenekli kriterlerde bir seçenek girilince diğerleri sıfırlanır
@@ -538,12 +531,6 @@ function grpFix(c, id) {
 }
 
 // ---- Olaylar
-document.addEventListener('click', e => {
-  const f = e.target.dataset.f;
-  if (f === undefined) return;
-  S.a = +f; drawFilter(); renderMods(); update();
-});
-
 document.addEventListener('input', e => {
   const t = e.target, a = t.dataset.a, i = t.dataset.i;
   if (i) { S.info[i] = t.value; update(); return; }
@@ -570,7 +557,7 @@ document.addEventListener('click', e => {
 $('#tip').onchange = e => { S.tip = +e.target.value; renderMods(); update(); };
 $('#dur').onchange = e => { S.durum = e.target.value; renderMods(); update(); };
 $('#hdf').onchange = e => { S.hedef = +e.target.value; update(); };
-$('#ols').onchange = e => { S.olcek = e.target.value; S.tip = S.olcek === 'Y' ? 0 : 1; S.a = 0; init(); };
+$('#ols').onchange = e => { S.olcek = e.target.value; S.tip = S.olcek === 'Y' ? 0 : 1; init(); };
 
 // ---- JSON dışa / içe aktarma (kanıt dosyaları dahil değildir)
 $('#ex').onclick = () => { $('#js').value = JSON.stringify(S); $('#jm').textContent = 'Proje verisi kutuya yazıldı.'; };
@@ -686,7 +673,7 @@ async function runReport(withPackage) {
     idx.forEach((mi, k) => {
       const folder = `Ekler/EK-${k + 1}_${D.mods[mi]}`;
       D.crit.filter(c => c.m === mi).forEach(c => (files[c.id] || []).forEach((f, i) => {
-        zip.file(`${folder}/${evidenceNo(c, i)}_${safeName(f.name)}`, f.blob);
+        zip.file(`${folder}/${c.c}/${evidenceNo(c, i)}_${safeName(f.name)}`, f.blob); // kriter klasörü (ör. BBT 01 K1)
       }));
     });
     const zipBlob = await zip.generateAsync({ type: 'blob' }, meta => say(`Paket sıkıştırılıyor… %${Math.round(meta.percent)}`));
@@ -696,6 +683,28 @@ async function runReport(withPackage) {
     say('Rapor oluşturulamadı: ' + ((e && e.message) || e));
   } finally { btns.forEach(b => b.disabled = false); }
 }
+// Alt modül raporu: yalnızca seçilen alt modülün kriterleri, kanıt dizini ve ekleri (.docx)
+async function runAltReport(t, btn) {
+  const btns = [$('#rp'), $('#rz'), ...document.querySelectorAll('[data-altrep]')], m = $('#rm'), say = x => m.textContent = x;
+  btns.forEach(b => b.disabled = true);
+  say(`${t} raporu hazırlanıyor…`);
+  try {
+    const all = await loadFiles(S), files = {};
+    D.crit.filter(c => c.t === t).forEach(c => { if (all[c.id]) files[c.id] = all[c.id]; });
+    await loadReportLibs(files);
+    const blob = await makeReport(S, files, say, { alt: t });
+    downloadBlob(blob, `YeS-TR_Rapor_${safeName(S.info.proje)}_${safeName(t.split(' ').slice(0, 2).join(''))}.docx`);
+    say(`${t} raporu indirildi.`);
+  } catch (e) {
+    say('Rapor oluşturulamadı: ' + ((e && e.message) || e));
+  } finally { btns.forEach(b => b.disabled = false); }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-altrep]');
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation(); // açılır başlığı açıp kapatmasın
+  runAltReport(b.dataset.altrep, b);
+});
 $('#rp').onclick = () => runReport(false);
 $('#rz').onclick = () => runReport(true);
 

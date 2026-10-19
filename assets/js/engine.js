@@ -49,27 +49,6 @@ const MOD_COLORS = {
 const modStyle = m => MOD_COLORS[m] ? ` style="--mc:${MOD_COLORS[m].dark};--ml:${MOD_COLORS[m].light}"` : '';
 const modClass = m => MOD_COLORS[m] ? ' mc' : '';
 
-// Modülü değerlendirebilen uzmanlar (YESDUM meslek grupları, kılavuz Bölüm 3); sitede modül panelinde gösterilir
-const MOD_EXPERTS = {
-  B: {
-    'BBT': 'Mimar, İnşaat Mühendisi, Makina Mühendisi, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, Elektronik ve Haberleşme Mühendisi',
-    'İOK': 'Mimar, İnşaat Mühendisi, Makina Mühendisi, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, İç Mimar, Elektronik ve Haberleşme Mühendisi',
-    'YMD': 'Mimar, İnşaat Mühendisi, Çevre Mühendisi',
-    'EKV': 'Mimar, Makina Mühendisi, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, Enerji Mühendisi, Enerji Sistemleri Mühendisi, Mekatronik Mühendisi, Elektronik ve Haberleşme Mühendisi, İnşaat Mühendisi',
-    'SAY': 'İnşaat Mühendisi, Makina Mühendisi, Çevre Mühendisi',
-    'İNO': 'Mimar, Makina Mühendisi, İnşaat Mühendisi, Çevre Mühendisi, İç Mimar, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Elektronik Mühendisi, Enerji Mühendisi, Enerji Sistemleri Mühendisi, Mekatronik Mühendisi, Elektronik ve Haberleşme Mühendisi'
-  },
-  Y: {
-    'BOL': 'Şehir Plancısı, Harita ve Kadastro Mühendisi',
-    'AKE': 'Şehir Plancısı, Peyzaj Mimarı, Çevre Mühendisi, Biyolog, Jeoloji Mühendisi, Jeofizik Mühendisi, Harita ve Kadastro Mühendisi, Ziraat Mühendisi',
-    'UHA': 'Şehir Plancısı, İnşaat Mühendisi',
-    'KET': 'Mimar, Şehir Plancısı, Peyzaj Mimarı, Çevre Mühendisi, Harita ve Kadastro Mühendisi',
-    'SES': 'Sosyolog, Ekonomist (İktisatçı), Şehir Plancısı, Gayrimenkul Geliştirme ve Yönetimi Uzmanı',
-    'İNO': 'Şehir Plancısı, Peyzaj Mimarı, Çevre Mühendisi, Mimar, Sosyolog, Ekonomist (İktisatçı), Biyolog, Makina Mühendisi, İnşaat Mühendisi, İç Mimar, Elektrik Mühendisi, Elektrik-Elektronik Mühendisi, Enerji Mühendisi, Enerji Sistemleri Mühendisi, Mekatronik Mühendisi, Elektronik Mühendisi, Elektronik ve Haberleşme Mühendisi, Jeoloji Mühendisi, Harita ve Kadastro Mühendisi, Ziraat Mühendisi, Jeofizik Mühendisi, Gayrimenkul Geliştirme ve Yönetimi Uzmanı'
-  }
-};
-const modExperts = m => (MOD_EXPERTS[D.scale] || {})[m];
-
 // Raporda modüllerin sırası (binada YMD, İOK'tan önce gelir).
 function reportModuleOrder() { return D.scale === 'Y' ? [0, 1, 2, 3, 4, 5] : [0, 2, 1, 3, 4, 5]; }
 
@@ -95,6 +74,21 @@ function tableTotals(T, rows) {
   return [[labels[0], sum(r => r[flag] === yes)], [labels[1], sum(r => r[flag] === no)], [labels[2], sum(() => true)]];
 }
 const tableOn = (id, p) => !!CRIT_TABLES[id] && (!CRIT_TABLES[id].when || CRIT_TABLES[id].when(p));
+
+// Rapor 2.3 proje ekibi: yeni binada BBT 01 K1 Tablo 2.1.3'ten gelir (aynı ekip).
+// Rapor bilgilerinde (rep.ekip) kişi girilmişse o esas alınır.
+function ekipFromTable(p) {
+  if (!p || (p.olcek || 'B') !== 'B' || !tableOn('BBT 01 K1', p)) return [];
+  const tx = v => String(v || '').trim();
+  return ((p.t || {})['BBT 01 K1'] || []).filter(r => tx(r.uzman) || tx(r.gorev)).map(r => ({
+    ad: tx(r.uzman),
+    gorev: [tx(r.gorev), tx(r.sor).split('\n').map(x => x.trim()).filter(Boolean).join('; ')].filter(Boolean).join(': ')
+  }));
+}
+function ekipOf(p) {
+  const own = ((p && p.rep && p.rep.ekip) || []).filter(x => Object.values(x).some(v => String(v || '').trim()));
+  return own.length ? { rows: own, tablo: false } : { rows: ekipFromTable(p), tablo: true };
+}
 
 // Organizasyon şeması bulunan kriterler ve hangi projelerde gösterileceği (orgchart.js)
 const ORG_CRITS = {

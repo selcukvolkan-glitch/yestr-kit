@@ -41,8 +41,11 @@ async function pdfPages(f, max, say) {
   } catch (e) { return null; }
 }
 
-async function makeReport(S0, FILES = {}, say = () => {}) {
-const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,ShadingType,BorderStyle,AlignmentType,HeadingLevel,Header,Footer,PageNumber,TableOfContents,LevelFormat,VerticalAlign,Tab,TabStopType,ImageRun}=docx;
+// opt.alt: alt modül adı (c.t, ör. "BBT 01 Proje Planlama") verilirse yalnızca o alt modülün raporu üretilir
+async function makeReport(S0, FILES = {}, say = () => {}, opt = {}) {
+const ALT=opt.alt||null,inAlt=c=>!ALT||c.t===ALT;
+if(ALT)FILES=Object.fromEntries(Object.entries(FILES).filter(([id])=>D.crit.some(c=>c.id===id&&inAlt(c))));
+const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,ShadingType,BorderStyle,AlignmentType,HeadingLevel,Header,Footer,PageNumber,TableOfContents,LevelFormat,VerticalAlign,Tab,TabStopType,ImageRun,InternalHyperlink,Bookmark}=docx;
 const isZ=isMandatory,mx=maxCredit;
 const LOGO=Uint8Array.from(atob(window.LOGO_B64),c=>c.charCodeAt(0));
 const G=GRADES,TH=D.th,TIPS_L=['Konut (Lojman)','Ofis','Eğitim','Otel (Misafirhane)','Sağlık','AVM / Ticaret','Diğer'];
@@ -71,20 +74,24 @@ const ph=(t='[Doldurunuz]')=>({t,color:MUT,it:true});
 const RP=repOf(S),K=RP.kunye,hv=x=>x!=null&&String(x).trim()!=='',val=(x,d)=>hv(x)?String(x).trim():ph(d),trd=d=>hv(d)?d.split('-').reverse().join('.'):'';
 const lines=t=>String(t||'').split('\n').map(x=>x.trim()).filter(Boolean);
 const cell=(c,w,o={})=>{if(c&&c.t!==undefined&&!Array.isArray(c)){o=Object.assign({},o,c);c=c.t}
- const kids=(Array.isArray(c)?c:[c]).map(x=>(typeof x==='string'||typeof x==='number')?para(x,{size:o.size||19,bold:o.bold,color:o.color,it:o.it,al:o.al,a:30}):x);
+ const kids=(Array.isArray(c)?c:[c]).map(x=>(typeof x==='string'||typeof x==='number')?para(x,{size:o.size||19,bold:o.bold,color:o.color,it:o.it,al:o.al,kn:o.kn,pb:o.pb,a:30}):x);
  return new TableCell({width:{size:w,type:WidthType.DXA},borders:o.dash?DB:B,columnSpan:o.span,verticalAlign:VerticalAlign.CENTER,margins:{top:70,bottom:70,left:110,right:110},shading:o.fill?{type:ShadingType.CLEAR,fill:o.fill,color:'auto'}:undefined,children:kids})};
 const tbl=(ws,head,rows,o={})=>{const s=ws.reduce((a,b)=>a+b,0);
  const hr=head?[new TableRow({tableHeader:true,cantSplit:true,children:head.map((h,i)=>cell(h,ws[i],{fill:NAVY,color:'FFFFFF',bold:true,size:19}))})]:[];
- return new Table({width:{size:s,type:WidthType.DXA},columnWidths:ws,rows:hr.concat(rows.map((r,ri)=>new TableRow({cantSplit:true,children:r.map((c,i)=>cell(c,ws[i],{fill:o.zebra!==false&&ri%2?GREY:undefined,bold:o.b0&&i===0,size:o.size}))})))})};
-const kv=(rows,w=[3000,6638])=>tbl(w,null,rows.map(r=>[{t:r[0],fill:LIGHT,bold:true,color:NAVY},r[1]]),{zebra:false});
+ return new Table({width:{size:s,type:WidthType.DXA},columnWidths:ws,alignment:o.center?AlignmentType.CENTER:undefined,rows:hr.concat(rows.map((r,ri)=>new TableRow({cantSplit:true,children:r.map((c,i)=>cell(c,ws[i],{fill:o.zebra!==false&&ri%2?GREY:undefined,bold:o.b0&&i===0,size:o.size}))})))})};
+const kv=(rows,w=[3000,6638],o={})=>tbl(w,null,rows.map(r=>[{t:r[0],fill:LIGHT,bold:true,color:NAVY},r[1]]),Object.assign({zebra:false},o));
 const h1=(t,pb=true)=>new Paragraph({heading:HeadingLevel.HEADING_1,pageBreakBefore:pb,children:[new TextRun({text:t,font:'Calibri',size:32,bold:true,color:NAVY})],spacing:{before:0,after:200},border:{bottom:{style:BorderStyle.SINGLE,size:12,color:BLUE,space:4}}});
-const h2=t=>new Paragraph({heading:HeadingLevel.HEADING_2,keepNext:true,children:[new TextRun({text:t,font:'Calibri',size:26,bold:true,color:NAVY})],spacing:{before:260,after:120}});
+const h2=(t,pb)=>new Paragraph({heading:HeadingLevel.HEADING_2,keepNext:true,pageBreakBefore:pb,children:[new TextRun({text:t,font:'Calibri',size:26,bold:true,color:NAVY})],spacing:{before:260,after:120}});
 const h3=(t,pb)=>new Paragraph({heading:HeadingLevel.HEADING_3,keepNext:true,pageBreakBefore:pb,children:[new TextRun({text:t,font:'Calibri',size:22,bold:true,color:NAVY})],spacing:{before:180,after:80}});
 const gap=()=>para('',{a:60});
 const note=(t)=>para(t,{it:true,color:MUT,size:18});
 const idx=reportModuleOrder();
 const crit=m=>D.crit.filter(c=>c.m===m);
 const eAd=c=>'Ek-'+c.id.replace(/ /g,'');
+// Ek numarası bağlantısı: tıklanınca Bölüm 10'daki ekin başlığına (yer işareti) gider
+const TRA={'Ç':'C','Ğ':'G','İ':'I','Ö':'O','Ş':'S','Ü':'U','ç':'c','ğ':'g','ı':'i','ö':'o','ş':'s','ü':'u'};
+const bmId=(c,j)=>('Ek_'+c.id+'_'+(j+1)).replace(/[ÇĞİÖŞÜçğıöşü]/g,ch=>TRA[ch]).replace(/[^A-Za-z0-9_]/g,'_');
+const ekLink=(c,j,size=17)=>new InternalHyperlink({anchor:bmId(c,j),children:[new TextRun({text:evidenceNo(c,j),font:'Calibri',size,color:'0563C1',underline:{}})]});
 const zFrom=c=>c.zg?` (${G[c.zg]} ve üstü)`:'';
 const naGuide=c=>guideOf(c)&&!guideReqs(c,S).length; // kılavuza göre bu projede uygulanmaz
 const cap=c=>naGuide(c)?'Uygulanmaz':isZ(c,S)?(earnableCredit(c,S)?'Zorunlu'+zFrom(c)+' + '+n2(mx(c,S)):(mx(c,S)?`Zorunlu${zFrom(c)} (azami ${n2(mx(c,S))}, kazanılamaz)`:'Zorunlu'+zFrom(c))):n2(mx(c,S));
@@ -96,7 +103,8 @@ const kids=[];
 const FL=c=>FILES[c.id]||[];
 const ext=f=>((f.name.match(/\.([^.]+)$/)||[,'dosya'])[1]).toUpperCase();
 const modEk=c=>idx.indexOf(c.m)+1;
-const pkgPath=(c,i,f)=>`Ekler/EK-${modEk(c)}_${D.mods[c.m]}/${evidenceNo(c,i)}_${safeName(f.name)}`;
+// Ek paketi: Ekler/EK-n_MODÜL/KRİTER KODU/Ek-no_dosya (her kriterin belgeleri kendi klasöründe)
+const pkgPath=(c,i,f)=>`Ekler/EK-${modEk(c)}_${D.mods[c.m]}/${c.c}/${evidenceNo(c,i)}_${safeName(f.name)}`;
 const REN={};
 for(const c of D.crit)for(const f of FL(c)){
  if(f.type.startsWith('image/')){say(`Görsel işleniyor: ${f.name}`);const im=await imageForDocx(f);REN[f.key]=im?{kind:'img',pages:[im]}:{kind:'none'}}
@@ -104,7 +112,7 @@ for(const c of D.crit)for(const f of FL(c)){
  else REN[f.key]={kind:'none'}}
 // Organizasyon şemaları (boşsa şablon şema)
 const ORGIMG={};
-if(typeof orgPNG==='function')for(const id of Object.keys(ORG_CRITS))if(hasOrg(id,S)&&D.crit.some(c=>c.id===id)){const nodes=orgNodes(S,id);ORGIMG[id]=await orgPNG(nodes.length?nodes:ORG_TEMPLATE)}
+if(typeof orgPNG==='function')for(const id of Object.keys(ORG_CRITS))if(hasOrg(id,S)&&D.crit.some(c=>c.id===id&&inAlt(c))){const nodes=orgNodes(S,id);ORGIMG[id]=await orgPNG(nodes.length?nodes:ORG_TEMPLATE)}
 say('Rapor oluşturuluyor…');
 const presented=f=>{const r=REN[f.key];return r.kind==='img'?'Raporda (görsel)':r.kind==='pdf'?`Raporda (${r.pages.length}${r.total>r.pages.length?' / '+r.total:''} sayfa)`:'Ek pakette'};
 const imgPara=im=>{const k=Math.min(1,620/im.w,860/im.h);return new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:60,after:60},children:[new ImageRun({type:im.type,data:im.data,transformation:{width:Math.round(im.w*k),height:Math.round(im.h*k)}})]})};
@@ -113,8 +121,8 @@ const critTableBlock=c=>{const T=CRIT_TABLES[c.id];if(!T||!tableOn(c.id,S))retur
  const filledRows=((S.t||{})[c.id]||[]).filter(r=>T.cols.some(([k])=>hv(r[k])));
  const ws=T.cols.length===2?[3200,W-3200]:T.cols.length===3?[4638,2500,2500]:T.cols.length===4?[2000,2000,3238,2400]:T.cols.length===6?[1300,900,1400,2000,2338,1700]:T.cols.length===7?[2438,1400,1160,1160,1160,1160,1160]:T.cols.map(()=>Math.floor(W/T.cols.length));
  // Dosya sütunu: belgenin Ekler'deki ek numarası ve adı (dosyalar loadFiles ile FILES'a katılır)
- const fileCell=arr=>{const xs=(arr||[]).map(f=>{const i=FL(c).findIndex(z=>z.key===f.key);return i<0?f.name:`${evidenceNo(c,i)} · ${f.name}`});
-  return xs.length?xs.map(x=>para(x,{size:17,a:20})):[para('…',{size:18,a:20,it:true,color:MUT})]};
+ const fileCell=arr=>{const xs=(arr||[]).map(f=>{const i=FL(c).findIndex(z=>z.key===f.key);return para(i<0?[run(f.name,{size:17})]:[ekLink(c,i),run(`  ·  ${f.name}`,{size:17})],{a:20})});
+  return xs.length?xs:[para('…',{size:18,a:20,it:true,color:MUT})]};
  const cellOf=(r,[k,,type])=>type==='list'
   ?(lines(r[k]).length?lines(r[k]).map(x=>para('• '+x,{size:18,a:20})):[para('• …',{size:18,a:20,color:MUT})])
   :type==='file'?fileCell(r[k])
@@ -125,14 +133,11 @@ const critTableBlock=c=>{const T=CRIT_TABLES[c.id];if(!T||!tableOn(c.id,S))retur
  const tots=tableTotals(T,filledRows).map(([lab,sums])=>{let j=0;return T.cols.map((col,i)=>i===0?{t:lab,bold:true,color:NAVY}:col[2]==='num'?(filledRows.length?n2(sums[j++]):ph('…')):'')});
  return [para(`${T.title} · ${c.c}`,{size:18,bold:true,color:NAVY,b:120,a:60,kn:true}),tbl(ws,T.cols.map(x=>x[1]),rows.concat(tots),{size:18}),
   ...(T.note?[para(T.note,{size:16,it:true,color:MUT,a:60})]:[])]};
-// Kılavuzu tanımlı kriter (guide.js): amaç, gereklilikler (durumlarıyla), kredi kuralı, yöntem, belgeler
+// Kılavuzu tanımlı kriter (guide.js): gereklilikler (durumlarıyla) ve hesaplı kriterlerde girilen değerler
 const guideParas=c=>{const Gd=guideOf(c),hd=t=>para(t,{size:17,bold:true,color:NAVY,a:20,b:60});
  const st=g=>!gApplies(g,S)?{t:'— uygulanmaz',color:MUT}:!filled?{t:'…',color:MUT}:guideChecked(c,S,g.no)?{t:'✓ sağlandı',color:GRN}:{t:'✗ sağlanmadı',color:RED};
- // Metin ya da metin dizisi: '• ' ile başlayan öğeler girintili madde olarak
- const txt=v=>(Array.isArray(v)?v:[v]).map(x=>/^•\s*/.test(x)?para('• '+x.replace(/^•\s*/,''),{size:18,a:20,bul:false}):para(x,{size:18,a:20}));
- return [hd('Amaç'),...txt(Gd.amac),
-  hd(`Gereklilikler (${DURUM_AD[S.durum]} ${birimAd()})`),
-  ...(Gd.not?[para(Gd.not,{size:17,a:20,color:MUT})]:[]),
+ // Raporda kılavuz metinlerinden yalnızca gereklilikler (durumlarıyla) ve girilen değerler / hesap yer alır
+ return [hd(`Gereklilikler (${DURUM_AD[S.durum]} ${birimAd()})`),
   ...Gd.gerek.filter(g=>gTip(g,S)).map(g=>{const s=g.head?{t:'',color:MUT}:st(g);
    return new Paragraph({indent:g.sub?{left:400}:undefined,spacing:{after:20,line:288},children:[run(`(${g.no}) `,{bold:true,size:18}),run(g.text,{size:18,color:gApplies(g,S)?undefined:MUT}),run('  '+s.t,{size:17,bold:true,color:s.color})]})}),
   // 'hesap' kuralı: girilen değerler ve hesap sonucu
@@ -147,27 +152,47 @@ const guideParas=c=>{const Gd=guideOf(c),hd=t=>para(t,{size:17,bold:true,color:N
     return [para(f.l+' (enerji kWh/m².yıl; sera gazı kg eşd./m².yıl)',{size:18,bold:true,a:40,b:40}),tbl([2300,1220,1220,1220,1220,1230,1228],['','Asıl · birincil','Asıl · yenilenebilir','Kıyas. · birincil','Kıyas. · yenilenebilir','Asıl · sera gazı','Kıyas. · sera gazı'],rows,{size:16})]};
    const val=f=>f.t==='grid'?gridRows(f).map(([r,l])=>l+': '+f.cols.filter(([cc])=>has(v[`${f.k}_${r}_${cc}`])).map(([cc,cl])=>cl.toLocaleLowerCase('tr-TR')+' '+v[`${f.k}_${r}_${cc}`]).join(', ')).join(' · '):f.t==='sel'?(f.opts.find(o=>o[0]===v[f.k])||['',v[f.k]])[1]:v[f.k]+(f.birim?' '+f.birim:'');
    return [hd('Girilen değerler ve hesap'),...(fs.length?fs.flatMap(f=>f.t==='f246'?f246Tbl(f):[para([run(f.l+': ',{bold:true,size:18}),run(val(f),{size:18})],{a:20})]):[para('Değer girilmedi.',{size:18,it:true,color:MUT,a:20})]),
-    para(guideCalc(c,S).text,{size:18,bold:true,color:NAVY,a:40})]})():[]),
-  ...(Gd.detay?txt(Gd.detay):[]),
-  para(Gd.kuralText,{size:17,it:true,color:MUT,a:20}),
-  hd('Yöntem'),...txt(Gd.yontem),
-  hd('Başvuru sahibi tarafından teslim edilmesi gereken belgeler'),...txt(Gd.belgeler),
-  ...((Gd.tanimlar||[]).length?[hd('Tanımlar'),...Gd.tanimlar.map(([k,v])=>para([run(k+': ',{bold:true,size:18}),run(v,{size:18})],{a:20}))]:[]),
-  ...((Gd.kaynaklar||[]).length?[hd('Kaynaklar / Standartlar'),...Gd.kaynaklar.map(k=>para('• '+k,{size:18,a:20}))]:[])]};
+    para(guideCalc(c,S).text,{size:18,bold:true,color:NAVY,a:40})]})():[])]};
 const orgBlock=c=>{const im=ORGIMG[c.id];if(!im)return [];
  return [new Paragraph({alignment:AlignmentType.CENTER,keepNext:true,spacing:{before:160,after:40},children:[new ImageRun({type:'png',data:im.data,transformation:(k=>({width:Math.round(im.w*k),height:Math.round(im.h*k)}))(Math.min(1,620/im.w,700/im.h))})]}),
   para([run('Şekil: ',{bold:true,it:true,size:18}),run(`Organizasyon Şeması · ${c.c}`,{it:true,size:18})],{al:AlignmentType.CENTER,a:120})]};
-const cardFiles=c=>FL(c).length?FL(c).map((f,i)=>para(`${evidenceNo(c,i)}  ·  ${f.name}  (${ext(f)}, ${presented(f).toLowerCase()})  →  Bölüm 10, EK-${modEk(c)}`,{size:17,a:20})):[para('Kanıt belgesini (rapor, proje, sözleşme, fotoğraf, belge görüntüsü vb.) bu alana ekleyiniz. Belge adı / tarih / sayfa: …',{size:17,it:true,color:MUT,a:20})];
+const cardFiles=c=>FL(c).length?FL(c).map((f,i)=>para([ekLink(c,i),run(`  ·  ${f.name}`,{size:17})],{a:20})):[para('Kanıt belgesini (rapor, proje, sözleşme, fotoğraf, belge görüntüsü vb.) bu alana ekleyiniz. Belge adı / tarih / sayfa: …',{size:17,it:true,color:MUT,a:20})];
 const CHP=CH?[para('Şekil 1. Modül bazlı ağırlıklı krediler (azami / alınan / hedef şart)',{it:true,color:MUT,size:18,b:140}),new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({type:'png',data:CH.bar,transformation:{width:600,height:260}})]}),para('Şekil 2. Modül doluluk oranları (alınan / azami kredi)',{it:true,color:MUT,size:18,b:140}),new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({type:'png',data:CH.radar,transformation:{width:380,height:360}})]})]:[];
 
 // ---- Kapak ve içindekiler
-const cover=[new Paragraph({children:[new ImageRun({type:'png',data:LOGO,transformation:{width:300,height:65}})],spacing:{after:320}}),
- new Table({width:{size:W,type:WidthType.DXA},columnWidths:[W],rows:[new TableRow({height:{value:4200,rule:'atLeast'},children:[cell([para('YEŞİL SERTİFİKA SİSTEMİ  ·  YeS-TR',{size:24,bold:true,color:'FFD2C2',a:200}),para(`${YY?'YERLEŞME':'BİNA'} DEĞERLENDİRME RAPORU`,{size:56,bold:true,color:'FFFFFF',a:160}),para((YY?dur:`${dur}  ·  ${tip}`),{size:30,color:'FFFFFF',a:200}),para('Kriter bazlı değerlendirme, skorlama ve kanıt dosyası',{size:22,color:'DCE6F2'})],W,{fill:NAVY})]})]}),
- gap(),gap(),
- kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Hedef sertifika derecesi',G[g]],['Hazırlayan (YESU)',info.yesu||ph()],['Rapor tarihi',info.tarih||ph()],['Rapor no / Sürüm',val(K.raporNo,'YS-0000 / v1.0')]]),
- gap(),note(`Bu rapor, YeS-TR ${YY?'Yerleşme':'Bina'} Değerlendirme Kılavuzu esas alınarak hazırlanan ön değerlendirme ve kanıt dosyasıdır. Sertifika, yalnızca Değerlendirme Kuruluşunun (Türkiye Çevre Ajansı) onayı ile geçerlilik kazanır.`)];
+// Kapak (Masaüstü "giris sayfası" şablonu): sayfa genişliğinde lacivert bant, ortalı başlıklar,
+// ortalı künye tablosu; not ve Novera logosu kapak altbilgisinde (sayfanın altına sabit)
+const CW=11906,CM=1417;
+const cpara=(t,o={})=>para(t,Object.assign({al:AlignmentType.CENTER},o));
+const cover=[new Paragraph({children:[],spacing:{before:1300,after:0}}),
+ new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[CW],rows:[new TableRow({height:{value:3688,rule:'atLeast'},children:[cell([cpara('YEŞİL SERTİFİKA SİSTEMİ  ·  YeS-TR',{size:24,bold:true,color:'FFD2C2',a:0}),cpara(`${YY?'YERLEŞME':'BİNA'} DEĞERLENDİRME RAPORU`,{size:56,bold:true,color:'FFFFFF',a:300}),cpara((YY?dur:`${dur}  ·  ${tip}`),{size:30,color:'FFFFFF',a:0}),cpara(ALT?`Alt Modül Raporu  ·  ${ALT}`:'Kriter bazlı değerlendirme, skorlama ve kanıt dosyası',{size:22,color:'DCE6F2',a:0})],CW,{fill:NAVY})]})]}),
+ new Paragraph({children:[],spacing:{before:0,after:700}}),
+ kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Hedef sertifika derecesi',G[g]],['Hazırlayan (YESU)',info.yesu||ph()],['Rapor tarihi',info.tarih||ph()],['Rapor no / Sürüm',val(K.raporNo,'YS-0000 / v1.0')]],[3000,4792],{center:true})];
+const coverFtr=new Footer({children:[new Paragraph({alignment:AlignmentType.CENTER,indent:{left:CM,right:CM},spacing:{after:360,line:288},children:[run(`Bu rapor, YeS-TR ${YY?'Yerleşme':'Bina'} Değerlendirme Kılavuzu esas alınarak hazırlanan ön değerlendirme ve kanıt dosyasıdır. Sertifika, yalnızca Değerlendirme Kuruluşunun (Türkiye Çevre Ajansı) onayı ile geçerlilik kazanır.`,{size:18,it:true,color:MUT})]}),
+ new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:200},children:[new ImageRun({type:'png',data:LOGO,transformation:{width:129,height:28}})]})]});
 const toc=[h1('İÇİNDEKİLER',false),new TableOfContents('İçindekiler',{hyperlink:true,headingStyleRange:'1-2'}),note('Not: İçindekiler alanı Word\'de açılışta güncellenir (gerekirse alana sağ tıklayıp "Alanı Güncelleştir").')];
 
+// ---- Ortak yapı taşları (tam rapor ve alt modül raporu)
+// Kart tablosu: ilk sütun tek satıra sığacak genişlikte, diğer sütunlar ortalı
+const CWS=[3300,2113,2113,2112],al=j=>j?AlignmentType.CENTER:undefined;
+const cardKids=(c,pb)=>[new Table({width:{size:W,type:WidthType.DXA},columnWidths:CWS,rows:[
+   new TableRow({cantSplit:true,children:[cell(`${c.c}${c.g?' (Seçenek '+c.id.slice(-1)+')':''} · ${c.n}`,W,{span:4,fill:NAVY,color:'FFFFFF',bold:true,size:19,kn:true,pb})]}),
+   new TableRow({cantSplit:true,children:['Proje aşaması','Alınabilir kredi','Alınan kredi','Kanıt durumu'].map((t,j)=>cell(t,CWS[j],{fill:LIGHT,bold:true,color:NAVY,size:17,al:al(j),kn:true}))}),
+   new TableRow({cantSplit:true,children:[STG[c.s],cap(c),alinan(c),ek(c)].map((t,j)=>cell(t,CWS[j],{size:19,al:al(j),kn:true}))}),
+   new TableRow({children:[cell(guideOf(c)?guideParas(c):[para('Gereklilik',{size:17,bold:true,color:NAVY,a:20}),...(c.r||'Kılavuzdaki kriter gerekliliğine bakınız.').split('\n').map(l=>para(l,{size:18,a:20}))],W,{span:4})]}),
+   new TableRow({children:[cell([para('Açıklamalar',{size:17,bold:true,color:NAVY,a:20}),para(S.n[c.id]||'[Kriterin projede nasıl karşılandığını, hesap ve kabulleri kısaca açıklayınız.]',{size:18,it:!S.n[c.id],color:S.n[c.id]?undefined:MUT,a:20})],W,{span:4})]}),
+   new TableRow({cantSplit:true,children:[cell([para(FL(c).length?`KANIT BELGELERİ  ·  ${FL(c).length} dosya`:`KANIT EKLEME ALANI  ·  ${eAd(c)}`,{size:17,bold:true,color:BLUE,a:40}),...cardFiles(c)],W,{span:4,dash:true,fill:'F7FAFE'})]})]}),...critTableBlock(c),...orgBlock(c),gap()];
+const shortN=c=>c.c+' '+(c.n.length>70?c.n.slice(0,68)+'…':c.n);
+const dizinRows=list=>list.flatMap(c=>FL(c).length?FL(c).map((f,j)=>[[para([ekLink(c,j)],{a:30})],shortN(c),f.name,f.date||'—',ek(c)]):[[eAd(c),shortN(c),ph('…'),ph('…'),ek(c)]]);
+const ekFiles=(c,out)=>FL(c).forEach((f,j)=>{const r=REN[f.key];
+  out.push(new Paragraph({heading:HeadingLevel.HEADING_3,keepNext:true,pageBreakBefore:true,spacing:{before:180,after:80},children:[new Bookmark({id:bmId(c,j),children:[new TextRun({text:`${evidenceNo(c,j)}  ·  ${f.name}`,font:'Calibri',size:22,bold:true,color:NAVY})]})]}),
+   note(`${c.c} · ${c.n}`),
+   para(`Tür: ${ext(f)}  ·  Boyut: ${(f.size/1048576).toFixed(2).replace('.',',')} MB  ·  Yükleme tarihi: ${f.date||'—'}`,{size:17,color:MUT}));
+  if(r.kind==='none')out.push(note(`Bu belge türü Word raporuna gömülemediğinden ek paketinde "${pkgPath(c,j,f)}" adıyla sunulmuştur.`));
+  else{r.pages.forEach(pg=>out.push(imgPara(pg)));
+   if(r.kind==='pdf'&&r.total>r.pages.length)out.push(note(`Belgenin ilk ${r.pages.length} sayfası rapora eklenmiştir; tamamı (${r.total} sayfa) ek paketinde "${pkgPath(c,j,f)}" adıyla yer alır.`))}});
+
+if(!ALT){
 // ---- 1 Yönetici özeti
 const cnt={};D.crit.forEach(c=>{cnt[c.s]=cnt[c.s]||[0,0];cnt[c.s][0]++;if(S.e[c.id]==='Tamam')cnt[c.s][1]++});
 const sumRows=[['Değerlendirme kapsamı',(YY?dur:`${dur} · ${tip}`)],['Hedef derece',`${G[g]} (toplam ≥ ${TH[g]} ağırlıklı kredi ve modül ${YY?'kapsam':'kredi'} şartları)`],
@@ -183,13 +208,15 @@ kids.push(h1('1. YÖNETİCİ ÖZETİ'),
  ...(SG.items.length?SG.items.slice(0,3).map(s=>para(`${s.c.c} · ${s.c.n.slice(0,90)} — ${s.why}${s.gain?` (+${f2(s.gain)} ağırlıklı kredi)`:''}`,{bul:true})):[1,2,3].map(i=>para(`[Bulgu / eylem ${i}: ilgili modül ve kriter kodu, mevcut durum, önerilen çözüm]`,{bul:true,it:true,color:MUT}))));
 
 // ---- 2 Proje bilgileri
+const EK=ekipOf(S);
 kids.push(h1('2. PROJE BİLGİLERİ'),
  h2('2.1 Genel bilgiler'),
  kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Proje konumu (il / ilçe / ada-parsel)',val(K.konum)],[YY?'Ölçek':'Bina tipolojisi',tip],[YY?'Kategori':'Bina kategorisi',dur],['Toplam yapı inşaat alanı (m²)',val(K.alan)],['Kat adedi / kullanıcı kapasitesi',val(K.kat)],['Yapı ruhsat tarihi / no',val(K.ruhsat)],['Mimari proje müellifi',val(K.mimar)],['Yüklenici / Şantiye şefi',val(K.yuklenici)],['Hedef sertifika derecesi',G[g]]]),
  h2('2.2 Sertifikasyon paydaşları'),
  tbl([2400,2400,2400,2438],['Rol','Kurum / Kişi','Belge / Yetki no','İletişim'],[['Yeşil Sertifika Uzmanı (YESU)',val(info.yesu),val(RP.pay.yesu.no),val(RP.pay.yesu.iletisim)],['Yapı sahibi / Yetkilisi',val(info.kurum),val(RP.pay.sahip.no),val(RP.pay.sahip.iletisim)],['Değerlendirme Kuruluşu','Türkiye Çevre Ajansı','—','—'],['Değerlendirme Uzmanları (YESDU)',val(RP.pay.yesdu.kisi),val(RP.pay.yesdu.no),val(RP.pay.yesdu.iletisim)],['Proje müellifleri / Danışmanlar',val(RP.pay.muellif.kisi),val(RP.pay.muellif.no),val(RP.pay.muellif.iletisim)]]),
  h2('2.3 Proje ekibi ve sorumluluk çizelgesi'),note(YY?'Proje ekibi, görev ve sorumlulukları aşağıya işlenir.':'BBT 01 K1 kriteri kapsamında; mimar, inşaat mühendisi, makina mühendisi, elektrik / elektrik-elektronik mühendisi, proje yöneticisi ve (belirlenmiş ise) genel yüklenici ve alt yüklenicilerden oluşan ekip, görev ve sorumlulukları ile birlikte aşağıya işlenir.'),
- tbl([2800,2600,2400,1838],['Ad Soyad','Disiplin / Unvan','Görev ve sorumluluk','Oda sicil no'],RP.ekip.length?RP.ekip.map(r=>[val(r.ad,'…'),val(r.disiplin,'…'),val(r.gorev,'…'),val(r.sicil,'…')]):[...Array(4)].map(()=>[ph('…'),ph('…'),ph('…'),ph('…')])));
+ ...(EK.tablo&&EK.rows.length?[note('Ekip bilgileri BBT 01 K1 kriterindeki Proje Ekibi Görev ve Sorumluluk Çizelgesi’nden (Tablo 2.1.3) alınmıştır.')]:[]),
+ tbl([2800,2600,2400,1838],['Ad Soyad','Disiplin / Unvan','Görev ve sorumluluk','Oda sicil no'],EK.rows.length?EK.rows.map(r=>[val(r.ad,'…'),val(r.disiplin,'…'),val(r.gorev,'…'),val(r.sicil,'…')]):[...Array(4)].map(()=>[ph('…'),ph('…'),ph('…'),ph('…')])));
 
 // ---- 3 Dayanak
 kids.push(h1('3. DAYANAK, KAPSAM VE YÖNTEM'),
@@ -261,24 +288,19 @@ kids.push(h1('6. SÜREÇ VE AŞAMA PLANI'),
 
 // ---- 7 Kriter kartları
 kids.push(h1('7. KRİTER BAZLI DETAYLI DEĞERLENDİRME'),
- para('Bu bölümde her kriter için; ilgili aşama, alınabilir ve alınan kredi, kriter gerekliliği, proje çözümü ve kanıt ekleme alanı yer almaktadır. Kanıt belgeleri ilgili kriter kartındaki alana, uzun belgeler ise Bölüm 10\'daki ek numarası ile eklenir.'));
+ para('Bu bölümde her kriter için; ilgili aşama, alınabilir ve alınan kredi, kriter gereklilikleri, açıklamalar ve kanıt ekleme alanı yer almaktadır. Kanıt belgeleri ilgili kriter kartındaki alana, uzun belgeler ise Bölüm 10\'daki ek numarası ile eklenir.'));
 let sec=0;
 idx.forEach(i=>{const m=D.mods[i];sec++;
- kids.push(h2(`7.${sec} ${m} · ${MN[m]}`),para(MA[m],{it:true,color:MUT}));
+ // Her modül, tema ve kriter kartı yeni sayfada başlar; başlıklar ardından gelen ilk kartla aynı sayfadadır
+ kids.push(h2(`7.${sec} ${m} · ${MN[m]}`,sec>1),para(MA[m],{it:true,color:MUT}));
  let th='';
- crit(i).forEach(c=>{if(c.t!==th){th=c.t;kids.push(h3(th))}
-  kids.push(new Table({width:{size:W,type:WidthType.DXA},columnWidths:[2300,2300,2300,2738],rows:[
-   new TableRow({cantSplit:true,children:[cell(`${c.c}${c.g?' (Seçenek '+c.id.slice(-1)+')':''} · ${c.n}`,W,{span:4,fill:NAVY,color:'FFFFFF',bold:true,size:19})]}),
-   new TableRow({cantSplit:true,children:['Proje aşaması','Alınabilir kredi','Alınan kredi','Kanıt durumu'].map((t,j)=>cell(t,[2300,2300,2300,2738][j],{fill:LIGHT,bold:true,color:NAVY,size:17}))}),
-   new TableRow({cantSplit:true,children:[STG[c.s],cap(c),alinan(c),ek(c)].map((t,j)=>cell(t,[2300,2300,2300,2738][j],{size:19}))}),
-   new TableRow({children:[cell(guideOf(c)?guideParas(c):[para('Gereklilik',{size:17,bold:true,color:NAVY,a:20}),...(c.r||'Kılavuzdaki kriter gerekliliğine bakınız.').split('\n').map(l=>para(l,{size:18,a:20}))],W,{span:4})]}),
-   new TableRow({children:[cell([para('Proje çözümü / uygulama gerekçesi',{size:17,bold:true,color:NAVY,a:20}),para(S.n[c.id]||'[Kriterin projede nasıl karşılandığını, hesap ve kabulleri kısaca açıklayınız.]',{size:18,it:!S.n[c.id],color:S.n[c.id]?undefined:MUT,a:20})],W,{span:4})]}),
-   new TableRow({height:{value:1500,rule:'atLeast'},children:[cell([para(FL(c).length?`KANIT BELGELERİ  ·  ${FL(c).length} dosya`:`KANIT EKLEME ALANI  ·  ${eAd(c)}`,{size:17,bold:true,color:BLUE,a:40}),...cardFiles(c)],W,{span:4,dash:true,fill:'F7FAFE'})]})]}),...critTableBlock(c),...orgBlock(c),gap())})});
+ let first=true; // modülün ilk kartı: önceki sayfa sonu modül başlığından gelir
+ crit(i).forEach(c=>{let pb=!first;first=false;if(c.t!==th){kids.push(h3(c.t,pb));th=c.t;pb=false}
+  kids.push(...cardKids(c,pb))})});
 
 // ---- 8 Kanıt dizini
 kids.push(h1('8. KANIT BELGE DİZİNİ'),para('Aşağıdaki dizin, kriter bazında sunulacak kanıt belgelerinin izlenmesi için kullanılır. Ek numaraları Bölüm 10\'daki ek sayfalarıyla eşleşir.'));
-const shortN=c=>c.c+' '+(c.n.length>70?c.n.slice(0,68)+'…':c.n);
-idx.forEach(i=>{kids.push(h3(`${D.mods[i]} · ${MN[D.mods[i]]}`),tbl([1700,3200,1900,1100,1738],['Ek no','Kriter','Belge adı','Tarih','Durum'],crit(i).flatMap(c=>FL(c).length?FL(c).map((f,j)=>[evidenceNo(c,j),shortN(c),f.name,f.date||'—',ek(c)]):[[eAd(c),shortN(c),ph('…'),ph('…'),ek(c)]]),{size:17}))});
+idx.forEach(i=>{kids.push(h3(`${D.mods[i]} · ${MN[D.mods[i]]}`),tbl([1700,3200,1900,1100,1738],['Ek no','Kriter','Belge adı','Tarih','Durum'],dizinRows(crit(i)),{size:17}))});
 
 // ---- 9 Sonuç ve eylem planı
 kids.push(h1('9. SONUÇ VE EYLEM PLANI'),
@@ -295,23 +317,41 @@ kids.push(h1('10. EKLER · KANIT BELGELERİ'),para('Kanıt belgeleri modül sır
 idx.forEach((i,k)=>{const withF=crit(i).filter(c=>FL(c).length);
  kids.push(h2(`EK-${k+1}  ${D.mods[i]} Modülü Kanıt Belgeleri`));
  if(!withF.length){kids.push(new Table({width:{size:W,type:WidthType.DXA},columnWidths:[W],rows:[new TableRow({height:{value:1400,rule:'atLeast'},children:[cell([para(`${D.mods[i]} MODÜLÜ EK BELGELERİ`,{size:18,bold:true,color:BLUE,a:40}),para('Bu modül için henüz kanıt dosyası yüklenmemiştir.',{size:17,it:true,color:MUT})],W,{dash:true,fill:'F7FAFE'})]})]}),gap());return}
- kids.push(tbl([1900,1500,4200,2038],['Ek no','Kriter','Belge','Sunum'],withF.flatMap(c=>FL(c).map((f,j)=>[evidenceNo(c,j),c.c,f.name,presented(f)])),{size:17}));
- withF.forEach(c=>FL(c).forEach((f,j)=>{const r=REN[f.key];
-  kids.push(h3(`${evidenceNo(c,j)}  ·  ${f.name}`,true),
-   note(`${c.c} · ${c.n}`),
-   para(`Tür: ${ext(f)}  ·  Boyut: ${(f.size/1048576).toFixed(2).replace('.',',')} MB  ·  Yükleme tarihi: ${f.date||'—'}`,{size:17,color:MUT}));
-  if(r.kind==='none')kids.push(note(`Bu belge türü Word raporuna gömülemediğinden ek paketinde "${pkgPath(c,j,f)}" adıyla sunulmuştur.`));
-  else{r.pages.forEach(pg=>kids.push(imgPara(pg)));
-   if(r.kind==='pdf'&&r.total>r.pages.length)kids.push(note(`Belgenin ilk ${r.pages.length} sayfası rapora eklenmiştir; tamamı (${r.total} sayfa) ek paketinde "${pkgPath(c,j,f)}" adıyla yer alır.`))}}))});
+ kids.push(tbl([1900,1500,4200,2038],['Ek no','Kriter','Belge','Sunum'],withF.flatMap(c=>FL(c).map((f,j)=>[[para([ekLink(c,j)],{a:30})],c.c,f.name,presented(f)])),{size:17}));
+ withF.forEach(c=>ekFiles(c,kids))});
 
-const titleTxt=`YeS-TR ${YY?'Yerleşme':'Bina'} Değerlendirme Raporu`;
+} else {
+// ---- Alt modül raporu: özet, kriter kartları, kanıt dizini ve ekler (yalnızca bu alt modül)
+const AL=D.crit.filter(inAlt),mi=AL.length?AL[0].m:0,mc=D.mods[mi];
+const sumOf=f=>{let v=0,o=[];AL.forEach(c=>{if(naGuide(c))return;const x=f(c);if(c.g)o.push(x);else v+=x});return v+(o.length?Math.max(...o):0)};
+const altMax=sumOf(c=>mx(c,S)),altGot=sumOf(c=>givenCredit(c,S));
+const zl=AL.filter(c=>isZ(c,S)&&!naGuide(c)),zOk=zl.filter(c=>zMet(c,S)).length,tam=AL.filter(c=>S.e[c.id]==='Tamam').length;
+kids.push(h1('1. ALT MODÜL ÖZETİ'),
+ kv([['Modül',`${mc} · ${MN[mc]}`],['Alt modül',ALT],['Değerlendirme kapsamı',(YY?dur:`${dur} · ${tip}`)],['Kriter sayısı',String(AL.length)],
+  ['Alınan / alınabilir kredi',filled?`${n2(altGot)} / ${n2(altMax)}`:ph(`… / ${n2(altMax)}`)],
+  ['Zorunlu kriterler',zl.length?(filled?`${zOk} / ${zl.length} sağlandı`:ph('…')):'Yok'],
+  ['Kanıt durumu “Tamam” olan',filled?`${tam} / ${AL.length} kriter`:ph('…')]]),
+ note('Kredi değerleri ağırlıksızdır (modül ağırlık katsayısı uygulanmamıştır). Toplam ağırlıklı kredi ve sertifika derecesi için tam değerlendirme raporuna bakınız.'),
+ h2('1.1 Kriter özeti'),
+ tbl([1300,4238,1600,1300,1200],['Kriter','Açıklama','Alınabilir kredi','Alınan kredi','Kanıt'],AL.map(c=>[{t:c.c,bold:true,color:NAVY},c.n,cap(c),alinan(c),ek(c)]),{size:17}));
+kids.push(h1('2. KRİTER BAZLI DEĞERLENDİRME'));
+AL.forEach((c,k)=>kids.push(...cardKids(c,k>0)));
+kids.push(h1('3. KANIT BELGE DİZİNİ'),para('Ek numaraları Bölüm 4\'teki ek sayfalarıyla eşleşir; ek numarasına tıklayarak ilgili eke gidebilirsiniz.'),
+ tbl([1700,3200,1900,1100,1738],['Ek no','Kriter','Belge adı','Tarih','Durum'],dizinRows(AL),{size:17}));
+const altF=AL.filter(c=>FL(c).length);
+kids.push(h1('4. EKLER · KANIT BELGELERİ'));
+if(!altF.length)kids.push(note('Bu alt modül için henüz kanıt dosyası yüklenmemiştir.'));
+else{kids.push(tbl([1900,1500,4200,2038],['Ek no','Kriter','Belge','Sunum'],altF.flatMap(c=>FL(c).map((f,j)=>[[para([ekLink(c,j)],{a:30})],c.c,f.name,presented(f)])),{size:17}));altF.forEach(c=>ekFiles(c,kids))}
+}
+
+const titleTxt=`YeS-TR ${YY?'Yerleşme':'Bina'} Değerlendirme Raporu${ALT?'  ·  '+ALT.split(' ').slice(0,2).join(' '):''}`;
 const hdr=new Header({children:[new Paragraph({tabStops:[{type:TabStopType.RIGHT,position:W}],border:{bottom:{style:BorderStyle.SINGLE,size:8,color:BLUE,space:4}},children:[new ImageRun({type:'png',data:LOGO,transformation:{width:110,height:24}}),new TextRun({children:[new Tab(),`${titleTxt}  ·  ${info.proje||'[Proje adı]'}`],font:'Calibri',size:17,color:MUT})]})]});
 const ftr=new Footer({children:[new Paragraph({tabStops:[{type:TabStopType.RIGHT,position:W}],children:[run('Novera Research & Consultancy  ·  Ön değerlendirme ve kanıt dosyası – bağlayıcı değildir',{size:16,color:MUT}),new TextRun({children:[new Tab(),'Sayfa ',PageNumber.CURRENT,' / ',PageNumber.TOTAL_PAGES],font:'Calibri',size:16,color:MUT})]})]});
 const pg={page:{size:{width:11906,height:16838},margin:{top:1300,bottom:1200,left:1134,right:1134}}};
 const doc=new Document({creator:'Novera Research & Consultancy',title:titleTxt,features:{updateFields:true},
  styles:{default:{document:{run:{font:'Calibri',size:21}}}},
  numbering:{config:[{reference:'bul',levels:[{level:0,format:LevelFormat.BULLET,text:'•',alignment:AlignmentType.LEFT,style:{paragraph:{indent:{left:540,hanging:270}}}}]}]},
- sections:[{properties:{page:{size:{width:11906,height:16838},margin:{top:1134,bottom:1134,left:1134,right:1134}}},children:cover},{properties:pg,headers:{default:hdr},footers:{default:ftr},children:[...toc,...kids]}]});
+ sections:[{properties:{page:{size:{width:CW,height:16838},margin:{top:CM,bottom:CM,left:0,right:0,footer:708}}},footers:{default:coverFtr},children:cover},{properties:pg,headers:{default:hdr},footers:{default:ftr},children:[...toc,...kids]}]});
 
 return Packer.toBlob(doc);
 }

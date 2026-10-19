@@ -2,6 +2,7 @@
 // Form bir taslak (RF) üzerinde çalışır; "Değerlendirmeye başla" / "Kaydet" ile projeye yazılır.
 
 let RF = repBlank();
+let REP_P = null; // formun ait olduğu proje (düzenleme modunda aktif proje; yeni projede yok)
 
 const KUNYE_ALANLAR = [
   ['raporNo', 'Rapor no / sürüm', 'ör. YS-2026-014 / v1.0'],
@@ -44,7 +45,7 @@ const REP_GROUPS = [
 ];
 
 // Grup doluluk özeti (r: rapor bilgisi; varsayılan form taslağı)
-function groupCount(g, r = RF) {
+function groupCount(g, r = RF, p = REP_P) {
   const n = arr => arr.filter(has).length;
   switch (g) {
     case 'kunye': return `${n(KUNYE_ALANLAR.map(a => r.kunye[a[0]]))}/${KUNYE_ALANLAR.length}`;
@@ -52,7 +53,8 @@ function groupCount(g, r = RF) {
       const vals = PAY_ROLLER.flatMap(([k, , fromInfo]) => (fromInfo ? [] : [r.pay[k].kisi]).concat([r.pay[k].no, r.pay[k].iletisim]));
       return `${n(vals)}/${vals.length}`;
     }
-    case 'ekip': return `${r.ekip.filter(x => has(x.ad)).length} kişi`;
+    case 'ekip': { const own = r.ekip.filter(x => has(x.ad)).length, tb = own ? 0 : ekipFromTable(p).length;
+      return tb ? `${tb} kişi · Tablo 2.1.3` : `${own} kişi`; }
     case 'deger': return `${r.guclu.split('\n').filter(has).length} güçlü · ${r.gelisim.split('\n').filter(has).length} gelişim`;
     case 'takip': return `${n(r.takip.flatMap(t => [t.plan, t.gercek]))}/${r.takip.length * 2} tarih`;
     case 'eylem': return `${r.eylem.filter(x => has(x.eylem)).length} eylem`;
@@ -65,14 +67,25 @@ function drawRepCard() {
   const r = repOf(S), [f, t] = repFill(S);
   $('#repSum').textContent = `${f}/${t} alan dolu`;
   $('#repList').innerHTML = REP_GROUPS.map(([g, title, sub]) =>
-    `<a href="#rapor" class="rl" data-og="${g}"><span>${title} <small>${sub}</small></span><span>${groupCount(g, r)}</span></a>`).join('');
+    `<a href="#rapor" class="rl" data-og="${g}"><span>${title} <small>${sub}</small></span><span>${groupCount(g, r, S)}</span></a>`).join('');
 }
 // Karttan bir gruba tıklanınca düzenleme sayfasında o grup açık gelir
 let PENDING_GROUP = null;
 document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-og]'); if (a) PENDING_GROUP = a.dataset.og; });
 function drawCounts() { document.querySelectorAll('[data-gc]').forEach(el => el.textContent = groupCount(el.dataset.gc)); }
 
+// Yeni binada 2.3 ile BBT 01 K1 Tablo 2.1.3 aynı ekip: bilgi notu ve aktarma butonu
+function ekipNote() {
+  const tb = ekipFromTable(REP_P);
+  if (!tb.length) return '';
+  if (RF.ekip.some(x => Object.values(x).some(has)))
+    return `<div class="note">Raporda burada girilen kişiler kullanılır; BBT 01 K1 Tablo 2.1.3'teki ${tb.length} kişi bu bölüme otomatik gelmez.</div>`;
+  return `<div class="note">Proje ekibi BBT 01 K1 kriterindeki Tablo 2.1.3'ten rapora otomatik gelir (${tb.length} kişi: ${esc(tb.map(x => x.ad || '…').join(', '))}). Disiplin / unvan ve oda sicil no eklemek için kişileri buraya aktarın.</div>`
+    + `<button type="button" class="ladd" data-imp="ekip">Tablo 2.1.3'ten aktar</button>`;
+}
+
 function renderRepForm(edit) {
+  REP_P = edit ? S : null;
   const openNow = {};
   document.querySelectorAll('#repf details.fg').forEach(d => openNow[d.dataset.g] = d.open);
   const grp = (g, title, sub, body) => `<details class="fg" data-g="${g}" ${openNow[g] ? 'open' : ''}>
@@ -86,7 +99,8 @@ function renderRepForm(edit) {
     + '<div class="note">Değerlendirme Kuruluşu (Türkiye Çevre Ajansı) rapora otomatik yazılır.</div>';
 
   const ekip = RF.ekip.map((r, i) => `<div class="lr g4">${rIn(`ekip.${i}.ad`, 'Ad soyad')}${rIn(`ekip.${i}.disiplin`, 'Disiplin / unvan')}${rIn(`ekip.${i}.gorev`, 'Görev ve sorumluluk')}${rIn(`ekip.${i}.sicil`, 'Oda sicil no')}<button type="button" class="lx" data-del="ekip.${i}" title="Satırı sil">✕</button></div>`).join('')
-    + `<button type="button" class="ladd" data-add="ekip">+ Kişi ekle</button>`;
+    + `<button type="button" class="ladd" data-add="ekip">+ Kişi ekle</button>`
+    + ekipNote();
 
   const ta = (path, ph) => `<textarea data-r="${path}" rows="4" placeholder="${esc(ph)}">${esc(getPath(RF, path) || '')}</textarea>`;
   const deger = `<div class="grid"><div><label class="f">Güçlü yönler (her satır bir madde)</label>${ta('guclu', 'ör. Yenilenebilir enerji çalışması tamamlandı')}</div>
@@ -118,6 +132,7 @@ document.addEventListener('click', e => {
   const t = e.target;
   if (!t.closest || !t.closest('#repf')) return;
   if (t.dataset.add) { RF[t.dataset.add].push({}); openGroup(t.dataset.add); }
+  else if (t.dataset.imp) { RF.ekip = ekipFromTable(REP_P).concat(RF.ekip.filter(x => Object.values(x).some(has))); openGroup('ekip'); }
   else if (t.dataset.del) { const [k, i] = t.dataset.del.split('.'); RF[k].splice(+i, 1); }
   else if (t.dataset.sug) {
     // Değerlendirme önerilerinden (zorunlu eksikler dahil) en fazla 8 eylem ekle
@@ -142,7 +157,7 @@ function repFill(p) {
   const r = repOf(p), vals = [
     ...KUNYE_ALANLAR.map(a => r.kunye[a[0]]),
     ...PAY_ROLLER.flatMap(([k, , fi]) => (fi ? [] : [r.pay[k].kisi]).concat([r.pay[k].no, r.pay[k].iletisim])),
-    r.ekip.length ? 'x' : '', r.guclu, r.gelisim,
+    ekipOf(Object.assign({}, p, { rep: r })).rows.length ? 'x' : '', r.guclu, r.gelisim,
     ...r.takip.map(t => t.plan),
     r.eylem.length ? 'x' : '',
     ...ONAY_ROLLER.flatMap(([k]) => [r.onay[k], r.onay[k + 'T']])
