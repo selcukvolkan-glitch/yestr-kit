@@ -56,9 +56,25 @@ function reportModuleOrder() { return D.scale === 'Y' ? [0, 1, 2, 3, 4, 5] : [0,
 // cols: [anahtar, başlık, tür] · tür 'text' | 'date' | 'time' | 'num' | 'yn' (E/H) | 'list' = her satır bir madde (raporda • ile),
 // 'file' = dosya yükleme (kanıt dosyalarıyla aynı ek numaralandırmasına girer)
 // when: (isteğe bağlı) tablonun gösterileceği projeler
+// Proje ekibi görev önerileri ('combo' sütunu: listeden seçilir ya da serbest yazılır)
+const EKIP_GOREVLER = ['Proje Yöneticisi', 'Mimar', 'İnşaat Mühendisi', 'Makina Mühendisi', 'Elektrik Mühendisi', 'Elektrik-Elektronik Mühendisi',
+  'Genel Yüklenici', 'Alt Yüklenici', 'Peyzaj Mimarı', 'İç Mimar', 'Çevre Mühendisi', 'Harita Mühendisi', 'Akustik Uzmanı', 'Aydınlatma Uzmanı',
+  'Enerji Kimlik Belgesi (EKB) Uzmanı', 'YDD (LCA) Uzmanı', 'İş Güvenliği Uzmanı', 'Yeşil Sertifika Uzmanı (YESU)'];
+// Kılavuzun BBT 01 K1 (1) numaralı gerekliliğinde saydığı disiplinler: [etiket, görev metnine uyan mı]
+const trLow = s => String(s || '').trim().toLocaleLowerCase('tr-TR');
+const EKIP_ZORUNLU = [
+  ['Mimar', g => g.startsWith('mimar')],
+  ['İnşaat Mühendisi', g => g.includes('inşaat')],
+  ['Makina Mühendisi', g => /makin[ae]/.test(g)],
+  ['Elektrik / Elektrik-Elektronik Mühendisi', g => g.includes('elektrik')],
+  ['Proje Yöneticisi', g => g.includes('proje yönetici')]
+];
+// Tablodaki görevlere göre zorunlu disiplinlerin durumu: [[etiket, var mı], ...]
+const ekipZorunlu = rows => EKIP_ZORUNLU.map(([l, f]) => [l, (rows || []).some(r => f(trLow(r.gorev)))]);
 const CRIT_TABLES = {
-  'BBT 01 K1': { title: 'Proje Ekibi Görev ve Sorumluluk Çizelgesi (Tablo 2.1.3)', rows: 1, when: p => p.durum === 'Y', cols: [
-    ['gorev', 'Görev', 'text'], ['uzman', 'Uzman Adı Soyadı', 'text'], ['sor', 'Sorumluluk', 'list'], ['belge', 'Yetki Belgesi', 'file']] },
+  'BBT 01 K1': { title: 'Proje Ekibi Görev ve Sorumluluk Çizelgesi (Tablo 2.1.3)', rows: 1, when: p => p.durum === 'Y', need: ekipZorunlu, cols: [
+    ['gorev', 'Görev', 'combo', EKIP_GOREVLER], ['uzman', 'Uzman Adı Soyadı', 'text'], ['iletisim', 'İletişim (e-posta / telefon)', 'text'],
+    ['sor', 'Sorumluluk', 'list'], ['belge', 'Yetki Belgesi', 'file']] },
   'BBT 01 K3': { title: 'Proje İhtiyaç Programı (Tablo 2.1.4)', rows: 1, when: p => p.durum === 'Y', cols: [
     ['islev', 'İşlev', 'text'], ['miktar', 'Miktar', 'text'], ['birim', 'Birim (adet, m², m, …)', 'text']] },
   'BBT 02 K1': { title: 'Toplantı Tutanakları (Tablo 2.1.6)', rows: 1, when: p => p.durum === 'Y', cols: [

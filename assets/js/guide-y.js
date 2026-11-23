@@ -121,12 +121,13 @@ const CRIT_GUIDE_Y = {
   // ---- AKE 02 Sürdürülebilir Yer Seçimi ve Enerji Etkin Planlama
   'AKE 02 K1': {
     amac: 'Bu kriter ile; yerleşmedeki binaların enerji verimli olması amaçlanmaktadır.',
-    kanit: 'Enerji kimlik belgelerini ekle',
+    kanit: 'Enerji kimlik belgelerini / Ön Hesap Sonuç Raporlarını ekle',
+    not: 'EKB düzenlenmesi zorunlu olmayan binalarda, BEP-BUY yazılımında oluşturulmuş olan Ön Hesap Sonuç Raporu, EKB yerine kabul edilebilir.',
     gerek: [{ no: 1, text: 'Yerleşme içerisinde bulunan ve Binalarda Enerji Performansı Yönetmeliği kapsamındaki binaların, enerji performansı ve sera gazı emisyonu sınıflarının en az C olduğunu gösteren Enerji Kimlik Belgesi’ne (EKB) sahip olması.', durum: YM }],
     kural: 'mandatory',
     kuralText: 'Yeni ve mevcut yerleşmeler için zorunlu bir kriterdir.',
-    yontem: 'Tüm bina tipleri için hesaplamalar, “Binalarda Enerji Performansı Ulusal Hesaplama Yöntemine Dair Tebliğ” ile belirlenen metodolojiye göre çalışan Ulusal Bina Enerji Performansı Hesaplama Programı (BEP-TR) kullanılarak yapılır. Proje alanındaki binaların enerji performansı ve sera gazı emisyonu sınıfları en az C olan EKB’ye sahip olmaları durumunda zorunluluk yerine getirilmiş olur.',
-    belgeler: 'Binaların Enerji Kimlik Belgeleri',
+    yontem: 'Tüm bina tipleri için hesaplamalar, “Binalarda Enerji Performansı Ulusal Hesaplama Yöntemine Dair Tebliğ” ile belirlenen metodolojiye göre çalışan Ulusal Bina Enerji Performansı Hesaplama Programı (BEP-TR) kullanılarak yapılır. Proje alanındaki binaların enerji performansı ve sera gazı emisyonu sınıfları en az C olan EKB’ye sahip olmaları durumunda zorunluluk yerine getirilmiş olur. EKB düzenlenmesi zorunlu olmayan binalarda, BEP-BUY yazılımında oluşturulmuş olan Ön Hesap Sonuç Raporu, EKB yerine kabul edilebilir.',
+    belgeler: 'Binaların Enerji Kimlik Belgeleri (EKB düzenlenmesi zorunlu olmayan binalarda BEP-BUY Ön Hesap Sonuç Raporu)',
     kaynaklar: ['Enerji Verimliliği Kanunu', 'İmar Kanunu', 'Binalarda Enerji Performansı Yönetmeliği', 'Binalarda Enerji Performansı Ulusal Hesaplama Yöntemine Dair Tebliğ']
   },
   'AKE 02 K2': {
@@ -773,16 +774,21 @@ const CRIT_GUIDE_Y = {
   'KET 05 K2': {
     amac: 'Bu kriter ile yeşil sertifika almış binaları teşvik etmek ve yeşil yerleşmenin en temel yapı taşlarından biri olan yeşil binaları sayıca arttırmak amaçlanmaktadır.',
     kanit: 'Kanıt belgeleri ekle',
-    gerek: [{ no: 1, text: 'İmar planında o alan için tanımlı kullanım kararına hizmet eden en az 1 binanın Ulusal Yeşil Sertifika’nın (YeS) başvuru tarihindeki güncel versiyonuna sahip olması ve diğer binaların EKB’lerindeki enerji performans sınıfının en az “C” olması.', durum: YM }],
+    not: 'Yeni yerleşmelerde zorunluluk, 1. gerekliliğin sağlanmasıyla ya da açık alan ağırlıklı yerleşme muafiyetiyle (2. gereklilik) karşılanır.',
+    gerek: [
+      { no: 1, text: 'İmar planında o alan için tanımlı kullanım kararının esas işlevine hizmet eden en az 1 (bir) binanın Ulusal Yeşil Sertifika’nın (YeS-TR) başvuru tarihindeki güncel versiyonunda yer alan zorunlu kriterleri karşılaması.', durum: ['Y'] },
+      { no: 2, text: 'Muafiyet: Millet bahçeleri, park ve rekreasyon alanları, stadyum ve spor kompleksleri, fuar alanları ve benzeri açık alan ağırlıklı yerleşme; binaların taban alanlarının toplamı proje alanının %20’sini geçmiyor (bu durumda zorunluluk aranmaz).', durum: ['Y'] },
+      { no: 3, text: 'Sertifikaya konu olan alan içindeki binaların Ulusal Yeşil Sertifikalı bina oranının belgelenmesi.', durum: ['M'] }
+    ],
     girdi: [{ k: 'oran', l: 'Ulusal Yeşil Sertifikalı bina oranı', t: 'num', birim: '%', durum: ['M'] }],
     hesap: (v, p) => {
       if (p.durum === 'Y') return { cr: 0, text: 'Yeni yerleşmelerde bu kriter zorunludur; kredisi yoktur.' };
       return yOran('oran', 'Yeşil sertifikalı bina oranı', { M: [[10, 1], [21, 2], [31, 3], [41, 4], [51, 5]] }, true)(v, p);
     },
-    kural: 'hesap', zReq: [1],
-    kuralText: 'Yeni yerleşmeler için zorunlu, mevcut yerleşmeler için zorunlu ve kredili bir kriterdir. Mevcut yerleşmelerde yeşil sertifikalı bina oranına göre: %10–%20 1, %21–%30 2, %31–%40 3, %41–%50 4, %51–%100 5 kredi alınır.',
+    kural: 'hesap', zReq: [1, 2], zAny: true,
+    kuralText: 'Yeni yerleşmeler için zorunlu, mevcut yerleşmeler için kredili bir kriterdir. Açık alan ağırlıklı yerleşmelerde bina taban alanları toplamı proje alanının %20’sini geçmiyorsa zorunluluk aranmaz. Mevcut yerleşmelerde yeşil sertifikalı bina oranına göre: %10–%20 1, %21–%30 2, %31–%40 3, %41–%50 4, %51–%100 5 kredi alınır.',
     yontem: 'Mevcut yerleşmelerde sertifikaya konu olan alan içindeki bina sayısının Ulusal Yeşil Sertifikalı bina oranına göre kredilendirme yapılır.',
-    belgeler: ['• Ulusal Yeşil Sertifika belgeleri,', '• Diğer binaların Enerji Kimlik Belgeleri.']
+    belgeler: ['• Yeni yerleşmede: binanın YeS-TR zorunlu kriterlerini karşıladığını gösteren belgeler ya da YeS-TR sertifikası; muafiyet varsa taban alanı hesabı,', '• Mevcut yerleşmede: Ulusal Yeşil Sertifika belgeleri ve bina sayısı tablosu.']
   },
   'KET 05 K3': {
     amac: 'Bu kriter ile sosyal eşitliği sağlamak ve farklı ekonomik sınıflar, aile büyüklüğü ve yaş gruplarını kaynaştırmak amaçlanmaktadır.',

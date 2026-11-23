@@ -119,7 +119,7 @@ const imgPara=im=>{const k=Math.min(1,620/im.w,860/im.h);return new Paragraph({a
 // Kritere özel tablo (CRIT_TABLES): dolu satırlar; hiç doldurulmamışsa şablon satırları (…)
 const critTableBlock=c=>{const T=CRIT_TABLES[c.id];if(!T||!tableOn(c.id,S))return [];
  const filledRows=((S.t||{})[c.id]||[]).filter(r=>T.cols.some(([k])=>hv(r[k])));
- const ws=T.cols.length===2?[3200,W-3200]:T.cols.length===3?[4638,2500,2500]:T.cols.length===4?[2000,2000,3238,2400]:T.cols.length===6?[1300,900,1400,2000,2338,1700]:T.cols.length===7?[2438,1400,1160,1160,1160,1160,1160]:T.cols.map(()=>Math.floor(W/T.cols.length));
+ const ws=T.cols.length===2?[3200,W-3200]:T.cols.length===3?[4638,2500,2500]:T.cols.length===4?[2000,2000,3238,2400]:T.cols.length===5?[1700,1500,1800,2638,2000]:T.cols.length===6?[1300,900,1400,2000,2338,1700]:T.cols.length===7?[2438,1400,1160,1160,1160,1160,1160]:T.cols.map(()=>Math.floor(W/T.cols.length));
  // Dosya sütunu: belgenin Ekler'deki ek numarası ve adı (dosyalar loadFiles ile FILES'a katılır)
  const fileCell=arr=>{const xs=(arr||[]).map(f=>{const i=FL(c).findIndex(z=>z.key===f.key);return para(i<0?[run(f.name,{size:17})]:[ekLink(c,i),run(`  ·  ${f.name}`,{size:17})],{a:20})});
   return xs.length?xs:[para('…',{size:18,a:20,it:true,color:MUT})]};
@@ -132,14 +132,24 @@ const critTableBlock=c=>{const T=CRIT_TABLES[c.id];if(!T||!tableOn(c.id,S))retur
  // Otomatik toplam satırları (ör. Tablo 2.1.9): etiket ilk sütunda, sayı sütunlarının altında toplamlar
  const tots=tableTotals(T,filledRows).map(([lab,sums])=>{let j=0;return T.cols.map((col,i)=>i===0?{t:lab,bold:true,color:NAVY}:col[2]==='num'?(filledRows.length?n2(sums[j++]):ph('…')):'')});
  return [para(`${T.title} · ${c.c}`,{size:18,bold:true,color:NAVY,b:120,a:60,kn:true}),tbl(ws,T.cols.map(x=>x[1]),rows.concat(tots),{size:18}),
+  // Kılavuzun aradığı disiplinler (BBT 01 K1): tablo doldurulduysa ✓ / ✗ satırı
+  ...(T.need&&filledRows.length?(()=>{const st=T.need(filledRows),miss=st.filter(x=>!x[1]);return [para([run('Kılavuzun aradığı disiplinler: ',{size:17,bold:true,color:NAVY}),...st.map(([l,ok],i)=>run((i?'  ·  ':'')+(ok?'✓ ':'✗ ')+l,{size:17,color:ok?GRN:RED}))],{a:20,b:60}),...(miss.length?[para('Eksik: '+miss.map(x=>x[0]).join(', ')+'. BBT 01 K1 (1) numaralı gereklilik bu disiplinlerin proje ekibinde yer almasını ister.',{size:16,it:true,color:MUT,a:60})]:[])]})():[]),
   ...(T.note?[para(T.note,{size:16,it:true,color:MUT,a:60})]:[])]};
 // Kılavuzu tanımlı kriter (guide.js): gereklilikler (durumlarıyla) ve hesaplı kriterlerde girilen değerler
+// Harita ile ölç (harita.js): ölçüm yapılmışsa en yakın tesisler ve mesafeler tablosu
+const hmRep=c=>{if(!guideOf(c).harita||typeof hmOf!=='function')return [];const hm=hmOf(c.id,S);if(!hm||hm.lat==null)return [];
+ const rows=[['tr',500],['sa',3000],['eg',3000]].map(([k,e])=>{const n=hmNearest(hm,k);return [HM_CAT[k].ad,n?n.ad:'—',n?hmFm(n.d):'—','≤ '+hmFm(e),n&&n.d<=e?'✓':'✗']});
+ if(hm.bis)rows.push(['Durağa bisiklet yolu','Kullanıcı beyanı','—','—','✓']);
+ return [para('Ulaşım mesafeleri (harita ölçümü)',{size:17,bold:true,color:NAVY,b:120,a:60,kn:true}),
+  tbl([2300,3338,1600,1200,1200],['İlgi tesisi','En yakın','Mesafe (kuş uçuşu)','Eşik','Durum'],rows,{size:17}),
+  para(`Bina ana girişi: ${hm.lat.toFixed(5)}, ${hm.lng.toFixed(5)} · Mesafeler kuş uçuşudur. Tesis verisi: OpenStreetMap katkıda bulunanlar. Harita görüntüsü kanıt belgelerindedir.`,{size:16,it:true,color:MUT,a:40})]};
 const guideParas=c=>{const Gd=guideOf(c),hd=t=>para(t,{size:17,bold:true,color:NAVY,a:20,b:60});
  const st=g=>!gApplies(g,S)?{t:'— uygulanmaz',color:MUT}:!filled?{t:'…',color:MUT}:guideChecked(c,S,g.no)?{t:'✓ sağlandı',color:GRN}:{t:'✗ sağlanmadı',color:RED};
  // Raporda kılavuz metinlerinden yalnızca gereklilikler (durumlarıyla) ve girilen değerler / hesap yer alır
  return [hd(`Gereklilikler (${DURUM_AD[S.durum]} ${birimAd()})`),
   ...Gd.gerek.filter(g=>gTip(g,S)).map(g=>{const s=g.head?{t:'',color:MUT}:st(g);
    return new Paragraph({indent:g.sub?{left:400}:undefined,spacing:{after:20,line:288},children:[run(`(${g.no}) `,{bold:true,size:18}),run(g.text,{size:18,color:gApplies(g,S)?undefined:MUT}),run('  '+s.t,{size:17,bold:true,color:s.color})]})}),
+  ...hmRep(c),
   // 'hesap' kuralı: girilen değerler ve hesap sonucu
   ...(Gd.kural==='hesap'?(()=>{const v=gvOf(c,S),has=x=>x!==undefined&&x!=='';
    const gridRows=f=>f.rows.filter(([r])=>f.cols.some(([cc])=>has(v[`${f.k}_${r}_${cc}`])));
@@ -152,7 +162,8 @@ const guideParas=c=>{const Gd=guideOf(c),hd=t=>para(t,{size:17,bold:true,color:N
     return [para(f.l+' (enerji kWh/m².yıl; sera gazı kg eşd./m².yıl)',{size:18,bold:true,a:40,b:40}),tbl([2300,1220,1220,1220,1220,1230,1228],['','Asıl · birincil','Asıl · yenilenebilir','Kıyas. · birincil','Kıyas. · yenilenebilir','Asıl · sera gazı','Kıyas. · sera gazı'],rows,{size:16})]};
    const val=f=>f.t==='grid'?gridRows(f).map(([r,l])=>l+': '+f.cols.filter(([cc])=>has(v[`${f.k}_${r}_${cc}`])).map(([cc,cl])=>cl.toLocaleLowerCase('tr-TR')+' '+v[`${f.k}_${r}_${cc}`]).join(', ')).join(' · '):f.t==='sel'?(f.opts.find(o=>o[0]===v[f.k])||['',v[f.k]])[1]:v[f.k]+(f.birim?' '+f.birim:'');
    return [hd('Girilen değerler ve hesap'),...(fs.length?fs.flatMap(f=>f.t==='f246'?f246Tbl(f):[para([run(f.l+': ',{bold:true,size:18}),run(val(f),{size:18})],{a:20})]):[para('Değer girilmedi.',{size:18,it:true,color:MUT,a:20})]),
-    para(guideCalc(c,S).text,{size:18,bold:true,color:NAVY,a:40})]})():[])]};
+    para(guideCalc(c,S).text,{size:18,bold:true,color:NAVY,a:40})]})():[]),
+  ...(Gd.dipnot&&Gd.dipnot.tip.includes(+S.tip)?[para(Gd.dipnot.text,{size:16,it:true,color:MUT,a:60})]:[])]};
 const orgBlock=c=>{const im=ORGIMG[c.id];if(!im)return [];
  return [new Paragraph({alignment:AlignmentType.CENTER,keepNext:true,spacing:{before:160,after:40},children:[new ImageRun({type:'png',data:im.data,transformation:(k=>({width:Math.round(im.w*k),height:Math.round(im.h*k)}))(Math.min(1,620/im.w,700/im.h))})]}),
   para([run('Şekil: ',{bold:true,it:true,size:18}),run(`Organizasyon Şeması · ${c.c}`,{it:true,size:18})],{al:AlignmentType.CENTER,a:120})]};
@@ -167,7 +178,7 @@ const cpara=(t,o={})=>para(t,Object.assign({al:AlignmentType.CENTER},o));
 const cover=[new Paragraph({children:[],spacing:{before:1300,after:0}}),
  new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[CW],rows:[new TableRow({height:{value:3688,rule:'atLeast'},children:[cell([cpara('YEŞİL SERTİFİKA SİSTEMİ  ·  YeS-TR',{size:24,bold:true,color:'FFD2C2',a:0}),cpara(`${YY?'YERLEŞME':'BİNA'} DEĞERLENDİRME RAPORU`,{size:56,bold:true,color:'FFFFFF',a:300}),cpara((YY?dur:`${dur}  ·  ${tip}`),{size:30,color:'FFFFFF',a:0}),cpara(ALT?`Alt Modül Raporu  ·  ${ALT}`:'Kriter bazlı değerlendirme, skorlama ve kanıt dosyası',{size:22,color:'DCE6F2',a:0})],CW,{fill:NAVY})]})]}),
  new Paragraph({children:[],spacing:{before:0,after:700}}),
- kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Hedef sertifika derecesi',G[g]],['Hazırlayan (YESU)',info.yesu||ph()],['Rapor tarihi',info.tarih||ph()],['Rapor no / Sürüm',val(K.raporNo,'YS-0000 / v1.0')]],[3000,4792],{center:true})];
+ kv([['Proje adı',info.proje||ph()],['Yapı sahibi / Kurum',info.kurum||ph()],['Hedef sertifika derecesi',G[g]],['Hazırlayan (YESU)',info.yesu||ph()],['Rapor tarihi',hv(info.tarih)?trd(info.tarih):ph()],['Rapor no / Sürüm',val(K.raporNo,'YS-0000 / v1.0')]],[3000,4792],{center:true})];
 const coverFtr=new Footer({children:[new Paragraph({alignment:AlignmentType.CENTER,indent:{left:CM,right:CM},spacing:{after:360,line:288},children:[run(`Bu rapor, YeS-TR ${YY?'Yerleşme':'Bina'} Değerlendirme Kılavuzu esas alınarak hazırlanan ön değerlendirme ve kanıt dosyasıdır. Sertifika, yalnızca Değerlendirme Kuruluşunun (Türkiye Çevre Ajansı) onayı ile geçerlilik kazanır.`,{size:18,it:true,color:MUT})]}),
  new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:200},children:[new ImageRun({type:'png',data:LOGO,transformation:{width:129,height:28}})]})]});
 const toc=[h1('İÇİNDEKİLER',false),new TableOfContents('İçindekiler',{hyperlink:true,headingStyleRange:'1-2'}),note('Not: İçindekiler alanı Word\'de açılışta güncellenir (gerekirse alana sağ tıklayıp "Alanı Güncelleştir").')];
@@ -223,7 +234,7 @@ kids.push(h1('3. DAYANAK, KAPSAM VE YÖNTEM'),
  h2('3.1 Mevzuat ve dayanak dokümanlar'),
  tbl([3800,5838],['Doküman','Açıklama'],[
   ['Binalar ile Yerleşmeler İçin Yeşil Sertifika Yönetmeliği','12.06.2022 tarihli ve 31864 sayılı Resmî Gazete. YeS-TR\'nin yasal çerçevesi.'],
-  [`Yeşil Sertifika ${YY?'Yerleşme':'Bina'} Değerlendirme Kılavuzu`,'Modül, tema ve kriterlerin amaç, gereklilik, yöntem ve kredilendirme esasları.'],
+  [`Yeşil Sertifika ${YY?'Yerleşme':'Bina'} Değerlendirme Kılavuzu, 1’inci Versiyon (V1)`,'Güncel sürüm. Modül, tema ve kriterlerin amaç, gereklilik, yöntem ve kredilendirme esasları.'],
   ['Planlı Alanlar İmar Yönetmeliği, madde 57/A','11.03.2025 tarihli ve 32838 sayılı Resmî Gazete ile eklenen hüküm; 01.01.2026 itibarıyla toplam yapı inşaat alanı 10.000 m² ve üzeri yeni kamu sağlık, eğitim, yurt ve hizmet binaları için YeS-TR sertifikası zorunludur.'],
   ['Kamu Binaları için Yeşil Sertifika Uygulama Rehberi','ÇŞİDB Mesleki Hizmetler Genel Müdürlüğü, Mart 2026. Süreç aşamaları ve kriter-kanıt ilişkisi.'],
   ['YeS-TR Puan Hesaplama v1.3 (2025)','Ön değerlendirme hesaplama aracı (v1.3: SAY 01 K1 ve SAY 01 K6 kredileri güncellendi). Bağlayıcı değildir; kılavuz ile farklılık halinde kılavuz geçerlidir.'],

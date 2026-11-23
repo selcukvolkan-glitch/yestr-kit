@@ -100,6 +100,8 @@ const pct = x => '%' + fmtN(x);
 // Bina tipi grubu: 0 konut · 1 ofis, otel, AVM, diğer · 2 eğitim ve sağlık
 const sayGrp = p => +p.tip === 0 ? 0 : (+p.tip === 2 || +p.tip === 4) ? 2 : 1;
 const SAY_GRP_AD = ['Konut', 'Ofis, otel, AVM ve diğer', 'Eğitim ve sağlık'];
+// Dipnot: kılavuz tablolarında SAY için ayrı "Diğer" sütunu yok; Diğer tipi ofis/otel/AVM grubunda sayılır (yalnızca tip = Diğer iken gösterilir)
+const SAY_DIGER_NOT = { tip: [6], text: 'Dipnot: Kılavuzun SAY tablolarında “Diğer” bina tipi için ayrı sütun bulunmadığından bu araçta “Diğer” ofis, otel ve AVM grubuyla değerlendirilir. Bu gruptaki azami kredi (SAY 01 K1: 15, SAY 01 K6: 13) ve Tablo 2.5.5’teki kullanım faktörleri (eğitim, ofis, AVM, diğer sütunu) bu eşleştirmeyle uyumludur.' };
 // SAY 01 K1 armatür tablosu: [anahtar, ad, birim, referans (25.02.2022 ve sonrası), referans (öncesi),
 //   kullanım faktörü Kf: [konut, eğitim / ofis / AVM / diğer, otel, sağlık]] (kılavuz Tablo 2.5.4 ve 2.5.5; "-" = 0)
 const SAY_ARM = [
@@ -229,6 +231,7 @@ const CRIT_GUIDE = {
     tanimlar: [['Proje Kapsamı', 'Proje hedeflerini, ihtiyaçları, maliyetleri ve süreyi içeren proje planlamanın bir parçasıdır.']]
   },
   'BBT 01 K4': {
+    harita: true, // Harita ile ölç bölümü (harita.js)
     amac: 'Bu kriter, binaya ait yer seçiminde; binanın toplu taşıma duraklarına ve kamu hizmet noktalarına yakın olmasını amaçlamaktadır.',
     gerek: [
       { no: 1, text: 'Bina ana girişinin toplu taşıma duraklarına olan mesafenin en fazla 500 metre olması veya toplu taşıma duraklarına kadar bisiklet yolunun olması.', durum: ['Y', 'M'] },
@@ -1352,19 +1355,20 @@ const CRIT_GUIDE = {
   // ---- EKV 01 Bina Enerji Performansı
   'EKV 01 K1': {
     amac: 'Bina enerjisinin ve enerji kaynaklarının etkin ve verimli kullanılması, enerji israfının önlenmesi, mimari tasarım, mekanik tesisat, aydınlatma, elektrik tesisatı gibi binanın enerji kullanımını ilgilendiren konularda bina projelerinin mevzuata, hesaplama metotlarına, standartlara, yöntemlere ve performans kriterlerine uyumun sağlanması amaçlanmaktadır.',
-    kanit: 'Enerji Kimlik Belgesi ekle',
+    kanit: 'Enerji Kimlik Belgesi / Ön Hesap Sonuç Raporu ekle',
+    not: 'EKB düzenlenmesi zorunlu olmayan binalarda, BEP-BUY yazılımında oluşturulmuş olan Ön Hesap Sonuç Raporu, EKB yerine kabul edilebilir.',
     gerek: [{ no: 1, text: 'BEP-TR yazılımı ile hesaplanan binanın Enerji Kimlik Belgesindeki enerji performans sınıfının en az “B” seviyesinde olması.', durum: ['Y', 'M'] }],
-    detay: 'EKV modülünde sanayi alanlarında üretim faaliyetleri yürütülen binaların sadece idari bölümleri değerlendirilir.',
+    detay: 'EKV modülünde sanayi alanlarında üretim faaliyetleri yürütülen binaların sadece idari bölümleri değerlendirilir. EKB düzenlenmesi zorunlu olmayan binalarda, BEP-BUY yazılımında oluşturulmuş olan Ön Hesap Sonuç Raporu, EKB yerine kabul edilebilir.',
     kural: 'mandatory',
     kuralText: 'Yeni ve mevcut tüm bina tipleri için zorunlu bir kriterdir.',
     yontem: 'Tüm bina tipleri için hesaplamalar, “Binalarda Enerji Performansı Ulusal Hesaplama Yöntemine Dair Tebliğ” ile belirlenen metodolojiye göre çalışan Ulusal Bina Enerji Performansı Hesaplama Programı (BEP-TR) kullanılarak yapılır.',
-    belgeler: 'Onaylı Enerji Kimlik Belgesinin bir kopyası',
+    belgeler: 'Onaylı Enerji Kimlik Belgesinin bir kopyası (EKB düzenlenmesi zorunlu olmayan binalarda BEP-BUY Ön Hesap Sonuç Raporu)',
     kaynaklar: ['Enerji Verimliliği Kanunu', 'Binalarda Enerji Performansı Yönetmeliği', 'Binalarda Enerji Performansı Ulusal Hesaplama Yöntemine Dair Tebliğ']
   },
   'EKV 01 K2': {
     amac: 'Binada kullanılan enerjinin verimliliği ve çevreye verdiği zararlar bina tasarımında alınan önlemlere, inşa edilirken kullanılan malzemeye, uygulamanın doğru yapılmasına ve işletilmesine bağlı olarak değişir. Yapım sürecinde alınacak önlemlerle konfor şartlarını bozmadan binanın enerji verimliliğinin artırılması ve bina kullanımında enerji tüketiminin azaltılması amaçlanmaktadır.',
     kanit: 'Kanıt belgeleri ekle',
-    not: 'Yeni binalarda Enerji Kimlik Belgesindeki oranları, mevcut binalarda Bina Enerji Tüketimi Değerlendirme Raporu’nu (Tablo 2.4.6) girin; ağırlıklı enerji performansı iyileştirme oranı (EPİ) ve kredi otomatik hesaplanır.',
+    not: 'Yeni binalarda Enerji Kimlik Belgesindeki oranları, mevcut binalarda Bina Enerji Tüketimi Değerlendirme Raporu’nu (Tablo 2.4.6) girin; ağırlıklı enerji performansı iyileştirme oranı (EPİ) ve kredi otomatik hesaplanır. EKB düzenlenmesi zorunlu olmayan binalarda BEP-BUY Ön Hesap Sonuç Raporu, EKB yerine kabul edilebilir.',
     gerek: [
       { no: 1, text: 'Binanın enerji performansının ve sera gazı emisyon değerlerinin BEP-TR ile hesaplanması (Enerji Kimlik Belgesi).', durum: ['Y', 'M'] },
       { no: 2, text: 'Bina enerji tüketimi değerlendirme raporunun hazırlanması (iyileştirme öncesi ve sonrası Enerji Kimlik Belgeleri ile).', durum: ['M'] }
@@ -1429,7 +1433,7 @@ const CRIT_GUIDE = {
       'EPİ = ke × E% + ks × SGE% (yeni ve mevcut binalarda tüm bina tipleri için ke = 0,65, ks = 0,35; Tablo 2.4.4 ve 2.4.5).',
       'Mevcut binalar için bina enerji tüketimi değerlendirme raporu (Tablo 2.4.6) hazırlanmalı; ekine kıyaslanan bina için oluşturulan Enerji Kimlik Belgesi ilave edilir. Yeni binalarda ve iyileştirme yapılmamış mevcut binalarda “Kıyaslanan Bina” bilgileri boş bırakılır.'
     ],
-    belgeler: ['• Onaylı Enerji Kimlik Belgesinin bir kopyası,', '• Binanın ağırlıklı enerji performansı hesap raporu,', '• Bina enerji tüketimi değerlendirme raporu.'],
+    belgeler: ['• Onaylı Enerji Kimlik Belgesinin bir kopyası (EKB zorunlu değilse BEP-BUY Ön Hesap Sonuç Raporu),', '• Binanın ağırlıklı enerji performansı hesap raporu,', '• Bina enerji tüketimi değerlendirme raporu.'],
     kaynaklar: ['Enerji Verimliliği Kanunu', 'Binalarda Enerji Performansı Yönetmeliği', 'Binalarda Enerji Performansı Ulusal Hesaplama Yöntemine Dair Tebliğ'],
     tanimlar: [
       ['Asıl Bina', 'Yeşil sertifika için değerlendirilmesi yapılmakta olan binadır.'],
@@ -1548,6 +1552,7 @@ const CRIT_GUIDE = {
   // ==== SAY Su ve Atık Yönetimi (kılavuz: say.docx)
   // ---- SAY 01 Su Yönetimi
   'SAY 01 K1': {
+    dipnot: SAY_DIGER_NOT,
     amac: 'Bu kriter ile binalarda suyun etkin ve verimli kullanılmasının sağlanması amaçlanmaktadır.',
     kanit: 'Kanıt belgeleri ekle',
     not: 'Armatür tablosunu doldurun; azalma oranı (I) ve kredi otomatik hesaplanır. Hesabı başka yerde yaptıysanız I değerini doğrudan da girebilirsiniz.',
@@ -1649,6 +1654,7 @@ const CRIT_GUIDE = {
     kaynaklar: ['Planlı Alanlar İmar Yönetmeliği', 'TS EN 16941-1 Yerinde içilebilir olmayan su sistemleri - Bölüm 1: Yağmur suyu kullanımı için sistemler', '“Yerinde İçilemez Su Sistemleri Kılavuzu” (https://webdosya.csb.gov.tr/db/meslekihizmetler/menu/yagmur-gri-su-klavuz-05_20250312114534.pdf)']
   },
   'SAY 01 K6': {
+    dipnot: SAY_DIGER_NOT,
     amac: 'Bu kriter ile; alternatif bir su kaynağı olarak değerlendirilen gri suyun arıtıldıktan sonra binalarda çeşitli amaçlar için kullanılarak şebeke suyundan tasarruf edilmesi amaçlanmaktadır.',
     kanit: 'Kanıt belgeleri ekle',
     gerek: [{ no: 1, text: 'Gri su toplama, arıtma ve geri kullanım sistemine ait fizibilite raporunun hazırlanması ve rapor doğrultusunda gri sudan yararlanılmasının sağlanması.', durum: ['Y', 'M'] }],
@@ -1868,7 +1874,7 @@ function guideZMet(c, p) {
   const G = guideOf(c);
   if (!G.zReq) return guideMet(c, p);
   const ns = reqNos(c, p, G.zReq);
-  return ns.length > 0 && ns.every(n => guideChecked(c, p, n));
+  return ns.length > 0 && (G.zAny ? ns.some(n => guideChecked(c, p, n)) : ns.every(n => guideChecked(c, p, n))); // zAny: biri yeterli (ör. KET 05 K2 muafiyeti)
 }
 // Kılavuza göre alınan kredi (earn: kazanılabilir azami kredi)
 function guideCredit(c, p, earn) {

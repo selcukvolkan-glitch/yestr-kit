@@ -50,6 +50,7 @@ function row(c) {
   </div>
   ${tableOn(id, S) ? `<div class="ctab" data-ct="${id}">${critTable(id)}</div>` : ''}
   ${hasOrg(id, S) ? `<div class="ctab orgc" data-orgc="${id}">${orgEditor(id)}</div>` : ''}
+  ${G && G.harita && typeof hmapShell === 'function' ? `<div class="ctab hmc">${hmapShell(id)}</div>` : ''}
   <div class="ev">
     <label class="up" title="PDF, Word, Excel, görsel, DWG vb. Dosyaları bu satırın üzerine sürükleyip de bırakabilirsiniz.">📎 ${esc(basHarf((G && G.kanit) || 'Kanıt dosyası ekle'))}<input type="file" multiple accept="${ACCEPT}" data-a="up" hidden></label>
     <span class="note">veya dosyayı buraya sürükleyin</span>
@@ -91,7 +92,7 @@ function guideBlock(c) {
   }).join('');
   return `<div class="gl"><div class="glt">Gereklilikler · ${dn} ${birimAd()}</div>${G.not ? `<div class="note gn">${esc(G.not)}</div>` : ''}${items}
       ${G.kural === 'hesap' ? guideInputsHtml(c) : ''}
-      <div class="note">${esc(G.kuralText)}</div></div>`;
+      <div class="note">${esc(G.kuralText)}</div>${G.dipnot && G.dipnot.tip.includes(+S.tip) ? `<div class="note gdn">${esc(G.dipnot.text)}</div>` : ''}</div>`;
 }
 // 'hesap' kuralı: değer giriş alanları + hesap sonucu
 function guideInputsHtml(c) {
@@ -183,6 +184,8 @@ function critTable(id) {
   const T = CRIT_TABLES[id], rows = tableRows(id);
   const head = T.cols.map(([, l, type]) => `<span>${l}${type === 'list' ? ' <small>(her satır bir madde)</small>' : ''}</span>`).join('');
   const cell = (r, i, [k, l, type]) => {
+    // Listeden seçilir ya da serbest yazılır (tarayıcının açılır öneri listesi)
+    if (type === 'combo') return `<input type="text" list="dl-${id}-${k}" data-tb="${id}" data-ti="${i}" data-tk="${k}" placeholder="${l} (listeden seçin ya da yazın)" value="${esc(r[k] || '')}" title="${l}">`;
     if (type === 'list') return `<textarea rows="2" data-tb="${id}" data-ti="${i}" data-tk="${k}" placeholder="${l}">${esc(r[k] || '')}</textarea>`;
     if (type === 'file') return `<div class="ctf">
         ${(r[k] || []).map(f => `<span class="ctfi"><a href="#" data-tfo="${f.key}" title="Aç">${esc(f.name)}</a><b data-tfx="${f.key}" data-ti="${i}" data-tk="${k}" title="Kaldır">✕</b></span>`).join('')}
@@ -191,7 +194,10 @@ function critTable(id) {
     const it = type === 'date' || type === 'time' ? type : type === 'num' ? 'number' : 'text';
     return `<input type="${it}" ${type === 'num' ? 'step="any" min="0" inputmode="decimal"' : ''} data-tb="${id}" data-ti="${i}" data-tk="${k}" placeholder="${l}" value="${esc(r[k] || '')}" title="${l}">`;
   };
-  return `<div class="ctt">${T.title}</div>
+  const lists = T.cols.filter(c => c[2] === 'combo').map(([k, , , opts]) =>
+    `<datalist id="dl-${id}-${k}">${(opts || []).map(o => `<option value="${esc(o)}">`).join('')}</datalist>`).join('');
+  return `<div class="ctt">${T.title}</div>${lists}
+    ${T.need ? `<div class="ctneed">${needHtml(T, rows)}</div>` : ''}
     <div class="ctr cth c${T.cols.length}">${head}<span></span></div>
     ${rows.map((r, i) => `<div class="ctr c${T.cols.length}">${T.cols.map(col => cell(r, i, col)).join('')}
       <button type="button" class="lx" data-tdel="${i}" title="Satırı sil">✕</button></div>`).join('')}
@@ -199,6 +205,12 @@ function critTable(id) {
     ${T.note ? `<div class="note">${esc(T.note)}</div>` : ''}
     <button type="button" class="ladd" data-tadd="1">+ Satır ekle</button>`;
 }
+// Kılavuzun aradığı disiplinler (ör. BBT 01 K1): tabloda olan ✓, eksik olan ✗
+const needHtml = (T, rows) => {
+  const st = T.need(rows), miss = st.filter(x => !x[1]).length;
+  return `<span class="ctnl">Kılavuzun aradığı disiplinler${miss ? ` · ${miss} eksik` : ' · tamam'}:</span> `
+    + st.map(([l, ok]) => `<span class="ctnc ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'} ${esc(l)}</span>`).join('');
+};
 // Otomatik toplam satırları (ilk iki sütun etiket, sonra sayı sütunlarının toplamları)
 const tableTotalsHtml = (T, rows) => tableTotals(T, rows).map(([label, sums]) =>
   `<div class="ctr c${T.cols.length} tot"><span class="tl">${label}</span>${sums.map(s => `<span>${num(s)}</span>`).join('')}<span></span></div>`).join('');
@@ -244,6 +256,8 @@ document.addEventListener('input', e => {
   save();
   const tot = t.closest('[data-ct]').querySelector('.ctot'); // toplamlar anında güncellensin
   if (tot) tot.innerHTML = tableTotalsHtml(CRIT_TABLES[id], rows);
+  const nd = t.closest('[data-ct]').querySelector('.ctneed'); // zorunlu disiplin işaretleri anında güncellensin
+  if (nd) nd.innerHTML = needHtml(CRIT_TABLES[id], rows);
   // Şema henüz boşsa "Görev listesinden oluştur" butonu güncellensin
   const ob = document.querySelector(`[data-orgc="${id}"]`);
   if (ob && !orgNodes(S, id).length) ob.innerHTML = orgEditor(id);
@@ -326,7 +340,7 @@ function renderMods() {
   // Her tema açılır-kapanır başlık olarak gösterilir
   let h = themes.map(t => {
     const rows = list.filter(c => c.t === t).map(row).join('');
-    return `<details class="tg" data-th="${esc(t)}" ${THOPEN[t] ? 'open' : ''}><summary><span class="tgn">${esc(t)}</span><span class="tgs" data-ts="${esc(t)}"></span><button type="button" class="tgr" data-altrep="${esc(t)}" title="Bu alt modülün raporunu indir (.docx)">Rapor</button></summary>${rows}</details>`;
+    return `<details class="tg" data-th="${esc(t)}" ${THOPEN[t] ? 'open' : ''}><summary><span class="tgn" title="${esc(t)}">${esc(t)}</span><span class="tgzb" hidden></span><span class="tgs" data-ts="${esc(t)}"></span><button type="button" class="tgr" data-altrep="${esc(t)}" title="Bu alt modülün raporunu indir (.docx)">Rapor</button></summary>${rows}</details>`;
   }).join('');
   if (!h) h = '<div class="note" style="padding:12px">Seçili aşamada bu modüle ait kriter yok.</div>';
   const tools = themes.length ? '<span class="tga"><button data-fold="1">Tümünü aç</button><button data-fold="0">Tümünü kapat</button></span>' : '';
@@ -340,12 +354,17 @@ function themeStats() {
     const got = cs.reduce((a, c) => a + givenCredit(c, S), 0);
     const opts = cs.filter(c => c.g).map(c => maxCredit(c, S)); // seçeneklerden yalnızca en yükseği sayılır
     const max = cs.filter(c => !c.g).reduce((a, c) => a + maxCredit(c, S), 0) + (opts.length ? Math.max(...opts) : 0);
-    const miss = cs.filter(c => isMandatory(c, S) && !zMet(c, S)).length;
+    // Zorunlu kriterler (derece şartlı olanlar yalnızca hedef derece o seviyedeyse, toplam hesapla aynı kural)
+    const zs = cs.filter(c => isMandatory(c, S) && mandatoryFrom(c) <= (S.hedef ?? 0)), zok = zs.filter(c => zMet(c, S)).length;
+    const miss = zs.length - zok;
     // Tamamlandı: kazanılabilir kredilerin tamamı alınmış ve zorunlu eksik yok
     const earnOpts = cs.filter(c => c.g).map(c => earnableCredit(c, S));
     const earnMax = cs.filter(c => !c.g).reduce((a, c) => a + earnableCredit(c, S), 0) + (earnOpts.length ? Math.max(...earnOpts) : 0);
     const done = !miss && got + EPS >= earnMax;
     el.closest('details.tg').classList.toggle('done', done);
+    // Kapalı görünümde zorunlu kriter rozeti: ZORUNLU sağlanan/toplam (yeşil tamam, kırmızı eksik)
+    const zb = el.parentNode.querySelector('.tgzb');
+    if (zb) { zb.hidden = !zs.length; zb.className = 'tgzb' + (miss ? ' no' : ' ok'); zb.textContent = `ZORUNLU ${zok}/${zs.length}${miss ? '' : ' ✓'}`; zb.title = zs.map(c => c.c + (zMet(c, S) ? ' ✓' : ' ✗')).join(' · '); }
     el.innerHTML = `${done ? '<b class="tgd">✓ Tamamlandı</b> · ' : ''}${cs.length} kriter${max ? ` · ${num(got)}/${num(max)} kredi` : ''}${miss ? ` · <b class="tgz">${miss} zorunlu eksik</b>` : ''}`;
   });
 }
@@ -513,7 +532,7 @@ function init() {
   $('#hdf').innerHTML = GRADES.map((t, i) => `<option value="${i}">${t}</option>`).join('');
   $('#ols').value = S.olcek || 'B';
   $('#tipd').hidden = yer;
-  $('#hsub').textContent = `${yer ? 'Yerleşme' : 'Bina'} ölçeği · Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir`;
+  $('#hsub').textContent = `${yer ? 'Yerleşme' : 'Bina'} ölçeği · Skorlama ve kanıt takibi · Yeşil Sertifika kılavuzları esaslı ön değerlendirme aracıdır, bağlayıcı değildir`;
   $('#tip').value = S.tip; $('#dur').value = S.durum; $('#hdf').value = S.hedef; updHelp();
   document.querySelectorAll('[data-i]').forEach(e => e.value = S.info[e.dataset.i] || '');
   renderMods(); update();
@@ -739,7 +758,7 @@ function route() {
   if (mode !== 'full') { home.textContent = '← Giriş'; home.dataset.to = ENTRY_PAGE; }
   else if (FLOW) { home.textContent = '← Projeler'; home.dataset.to = LIST_HASH; }
   else { home.textContent = '← Ana sayfa · Projeler'; home.dataset.to = OLD_HASH; }
-  if (work) { init(); } else { drawStart(edit, mode); $('#hsub').textContent = 'Skorlama ve kanıt takibi · v1.3 esaslı ön değerlendirme aracıdır, bağlayıcı değildir'; }
+  if (work) { init(); } else { drawStart(edit, mode); $('#hsub').textContent = 'Skorlama ve kanıt takibi · Yeşil Sertifika kılavuzları esaslı ön değerlendirme aracıdır, bağlayıcı değildir'; }
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
